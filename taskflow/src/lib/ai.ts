@@ -39,18 +39,25 @@ export interface ExtractedTask {
 
 export async function extractTasks(
   rawText: string,
-  existingProjects: string[]
+  existingProjects: string[],
+  workSummary?: string | null
 ): Promise<ExtractedTask[]> {
   assertApiKey();
+
+  // Build context block from the rolling work summary (if available)
+  const contextBlock = workSummary
+    ? `\n\nUser's ongoing work context (use this to make better project/priority suggestions):\n${workSummary}`
+    : "";
+
   try {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.2,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: `You are a task extraction assistant for project managers. Extract actionable tasks from the provided text (meeting notes, Slack messages, etc.).
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a task extraction assistant for project managers. Extract actionable tasks from the provided text (meeting notes, Slack messages, etc.).
 
 For each task, provide:
 - title: concise action item (start with a verb)
@@ -59,24 +66,24 @@ For each task, provide:
 - priority: low, medium, high, or urgent (infer from context, urgency words, deadlines)
 - dueDate: ISO date string if a deadline is mentioned, null otherwise
 
-Existing projects: ${existingProjects.length > 0 ? existingProjects.join(", ") : "none yet"}
+Existing projects: ${existingProjects.length > 0 ? existingProjects.join(", ") : "none yet"}${contextBlock}
 
 Return JSON: { "tasks": [...] }
 If no actionable tasks are found, return { "tasks": [] }.`,
-      },
-      { role: "user", content: rawText },
-    ],
-  });
+        },
+        { role: "user", content: rawText },
+      ],
+    });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) return [];
+    const content = response.choices[0]?.message?.content;
+    if (!content) return [];
 
-  try {
-    const parsed = JSON.parse(content);
-    return parsed.tasks || [];
-  } catch {
-    return [];
-  }
+    try {
+      const parsed = JSON.parse(content);
+      return parsed.tasks || [];
+    } catch {
+      return [];
+    }
   } catch (err: unknown) {
     if (err instanceof OpenAI.APIError && err.status === 401) {
       throw new AIConfigError(
@@ -85,6 +92,42 @@ If no actionable tasks are found, return { "tasks": [] }.`,
     }
     throw err;
   }
+}
+
+/**
+ * Updates the rolling work summary by merging the existing summary with
+ * new information from the latest transcript. Keeps the summary compact
+ * (~500 tokens) so it can be cheaply included in future extraction prompts.
+ */
+export async function updateWorkSummary(
+  currentSummary: string | null,
+  newTranscript: string
+): Promise<string> {
+  assertApiKey();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.1,
+    messages: [
+      {
+        role: "system",
+        content: `You maintain a concise rolling summary of a user's work context. This summary is used to help an AI extract better, more personalized tasks from future meeting notes.
+
+Rules:
+- Keep the summary under 500 words
+- Focus on: active projects, recurring themes, key people/teams, ongoing priorities, recent decisions
+- Drop outdated information when new info supersedes it
+- Write in bullet-point style, grouped by project/theme
+- If there is no existing summary, create one from scratch`,
+      },
+      {
+        role: "user",
+        content: `${currentSummary ? `Existing summary:\n${currentSummary}\n\n` : ""}New transcript:\n${newTranscript}\n\nProduce the updated summary:`,
+      },
+    ],
+  });
+
+  return response.choices[0]?.message?.content || currentSummary || "";
 }
 
 export async function categorizeTask(
