@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, FolderKanban, Sparkles, LogOut } from "lucide-react";
+import { LayoutDashboard, ListTodo, Sparkles, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 interface Project {
@@ -17,6 +17,7 @@ export function Sidebar({ projects }: { projects: Project[] }) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/tasks", label: "All Tasks", icon: ListTodo },
     { href: "/extract", label: "Paste & Extract", icon: Sparkles },
   ];
 
