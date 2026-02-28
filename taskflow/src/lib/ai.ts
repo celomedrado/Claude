@@ -21,6 +21,8 @@ export async function extractTasks(
   rawText: string,
   existingProjects: string[]
 ): Promise<ExtractedTask[]> {
+  console.log("extractTasks: calling OpenAI with key starting:", apiKey?.substring(0, 12));
+  try {
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.2,
@@ -54,6 +56,10 @@ If no actionable tasks are found, return { "tasks": [] }.`,
     return parsed.tasks || [];
   } catch {
     return [];
+  }
+  } catch (err: unknown) {
+    console.error("extractTasks OpenAI error:", JSON.stringify(err, Object.getOwnPropertyNames(err as object)));
+    throw err;
   }
 }
 
