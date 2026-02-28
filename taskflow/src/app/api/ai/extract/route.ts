@@ -16,13 +16,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Text is required" }, { status: 400 });
   }
 
-  const userProjects = await db
-    .select({ name: projects.name })
-    .from(projects)
-    .where(eq(projects.userId, session.user.id));
+  try {
+    const userProjects = await db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.userId, session.user.id));
 
-  const projectNames = userProjects.map((p) => p.name);
-  const extracted = await extractTasks(text, projectNames);
+    const projectNames = userProjects.map((p) => p.name);
+    const extracted = await extractTasks(text, projectNames);
 
-  return NextResponse.json({ tasks: extracted });
+    return NextResponse.json({ tasks: extracted });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Task extraction failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

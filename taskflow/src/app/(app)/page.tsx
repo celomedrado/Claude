@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { tasks, projects } from "@/db/schema";
-import { eq, and, sql, desc, ne, lte, gte } from "drizzle-orm";
+import { eq, and, sql, desc, ne } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Sparkles, ArrowRight } from "lucide-react";
@@ -25,8 +25,7 @@ export default async function DashboardPage() {
     .where(eq(tasks.userId, userId));
 
   // Upcoming due dates (next 7 days, not done/archived)
-  const sevenDaysOut = new Date(now);
-  sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
+  const sevenDaysEpoch = Math.floor(now.getTime() / 1000) + 7 * 86400;
 
   const upcoming = await db
     .select({
@@ -43,7 +42,7 @@ export default async function DashboardPage() {
         eq(tasks.userId, userId),
         ne(tasks.status, "done"),
         ne(tasks.status, "archived"),
-        lte(tasks.dueDate, sevenDaysOut),
+        sql`${tasks.dueDate} <= ${sevenDaysEpoch}`,
       )
     )
     .orderBy(tasks.dueDate)

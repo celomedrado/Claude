@@ -42,8 +42,12 @@ If no actionable tasks are found, return { "tasks": [] }.`,
   const content = response.choices[0]?.message?.content;
   if (!content) return [];
 
-  const parsed = JSON.parse(content);
-  return parsed.tasks || [];
+  try {
+    const parsed = JSON.parse(content);
+    return parsed.tasks || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function categorizeTask(
@@ -71,7 +75,11 @@ Return JSON: { "project": "project name or empty string", "priority": "low|mediu
   const content = response.choices[0]?.message?.content;
   if (!content) return { project: "", priority: "medium" };
 
-  return JSON.parse(content);
+  try {
+    return JSON.parse(content);
+  } catch {
+    return { project: "", priority: "medium" };
+  }
 }
 
 export type DocTemplate = "status_update" | "meeting_brief" | "action_items";

@@ -16,13 +16,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
 
-  const userProjects = await db
-    .select({ name: projects.name })
-    .from(projects)
-    .where(eq(projects.userId, session.user.id));
+  try {
+    const userProjects = await db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.userId, session.user.id));
 
-  const projectNames = userProjects.map((p) => p.name);
-  const suggestion = await categorizeTask(title, description || "", projectNames);
+    const projectNames = userProjects.map((p) => p.name);
+    const suggestion = await categorizeTask(title, description || "", projectNames);
 
-  return NextResponse.json(suggestion);
+    return NextResponse.json(suggestion);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Categorization failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

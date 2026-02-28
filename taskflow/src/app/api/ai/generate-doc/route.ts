@@ -19,7 +19,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid template" }, { status: 400 });
   }
 
-  const document = await generateDocument(tasks, template);
-
-  return NextResponse.json({ document });
+  try {
+    const document = await generateDocument(tasks, template);
+    return NextResponse.json({ document });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Document generation failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
