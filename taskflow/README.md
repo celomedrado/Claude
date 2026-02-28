@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TaskFlow
 
-## Getting Started
+AI-powered task management for solo PMs. Paste meeting notes or messages, let AI extract and categorize tasks, then generate status documents.
 
-First, run the development server:
+## Features
+
+- **Paste & Extract** — Paste raw text (meeting notes, Slack messages) and AI extracts structured tasks with priorities and due dates
+- **Auto-Categorize** — AI suggests project assignment and priority for new tasks
+- **Document Generation** — Generate status updates, meeting briefs, or action item summaries from your tasks
+- **Project Organization** — Group tasks by project with color-coded indicators
+- **Task Management** — Full CRUD with status workflow (todo → in progress → done → archived), filtering, and sorting
+
+## Tech Stack
+
+- **Next.js 16** (App Router) — full-stack framework
+- **SQLite + Drizzle ORM** — zero-infra database, single file
+- **Tailwind CSS** — utility-first styling
+- **NextAuth.js** — credentials-based authentication
+- **OpenAI API** — task extraction, categorization, document generation (gpt-4o-mini)
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- An OpenAI API key
+
+### Local Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your OPENAI_API_KEY and a NEXTAUTH_SECRET
+
+# Initialize the database
+npm run db:push
+
+# (Optional) Seed with demo data
+npm run db:seed
+
+# Start dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. If you ran the seed script, log in with:
+- Email: `demo@taskflow.app`
+- Password: `demo1234`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Copy and configure environment
+cp .env.example .env
 
-## Learn More
+# Build and run
+docker compose up -d
+```
 
-To learn more about Next.js, take a look at the following resources:
+The app will be available at http://localhost:3000.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+taskflow/
+├── src/
+│   ├── app/              # Next.js pages and API routes
+│   │   ├── (app)/        # Authenticated app routes
+│   │   │   ├── extract/  # Paste & Extract page
+│   │   │   ├── generate/ # Document generation page
+│   │   │   ├── projects/ # Project management
+│   │   │   └── tasks/    # All tasks view
+│   │   └── api/          # API routes (auth, AI endpoints)
+│   ├── actions/          # Server actions (task/project CRUD)
+│   ├── components/       # Shared UI components
+│   ├── db/               # Drizzle schema and database connection
+│   └── lib/              # Auth config, AI service, utilities
+├── drizzle/              # SQL migrations
+├── scripts/              # Seed script
+├── data/                 # SQLite database (gitignored)
+├── Dockerfile
+└── docker-compose.yml
+```
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run db:generate` | Generate new migration |
+| `npm run db:push` | Push schema to database |
+| `npm run db:seed` | Seed database with demo data |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT
