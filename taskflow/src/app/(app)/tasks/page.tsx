@@ -3,7 +3,8 @@ import { db } from "@/db";
 import { projects, tasks } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { TaskList, type TaskItem } from "@/components/task-list";
+import { type TaskItem } from "@/components/task-list";
+import { TasksView } from "@/components/tasks-view";
 
 export default async function TasksPage() {
   const session = await auth();
@@ -48,7 +49,7 @@ export default async function TasksPage() {
       <p className="mt-1 text-sm text-gray-500 mb-6">
         Every task across all projects
       </p>
-      <TaskList tasks={taskItems} projects={allProjects} />
+      <TasksView tasks={taskItems} projects={allProjects} />
     </div>
   );
 }
