@@ -1,6 +1,6 @@
 # TaskFlow — MVP Implementation Plan
 
-**Overall Progress:** `0%`
+**Overall Progress:** `82%`
 
 ## TLDR
 
@@ -17,67 +17,65 @@ TaskFlow is a self-hosted web app for solo PMs who lose track of action items fr
 
 ## Tasks
 
-- [ ] **Step 1: Project Scaffolding**
-  - [ ] Init Next.js 14 project in `taskflow/` with TypeScript
-  - [ ] Install and configure Tailwind CSS + shadcn/ui
-  - [ ] Install and configure Drizzle ORM with SQLite (better-sqlite3)
-  - [ ] Set up project folder structure (`src/app`, `src/components`, `src/db`, `src/lib`, `src/actions`)
-  - [ ] Add environment variables template (`.env.example` with `OPENAI_API_KEY`, `NEXTAUTH_SECRET`)
+- [x] 🟩 **Step 1: Project Scaffolding**
+  - [x] 🟩 Init Next.js 14 project in `taskflow/` with TypeScript
+  - [x] 🟩 Install and configure Tailwind CSS + Radix UI primitives
+  - [x] 🟩 Install and configure Drizzle ORM with SQLite (better-sqlite3)
+  - [x] 🟩 Set up project folder structure (`src/app`, `src/components`, `src/db`, `src/lib`, `src/actions`)
+  - [x] 🟩 Add environment variables template (`.env.example` with `OPENAI_API_KEY`, `NEXTAUTH_SECRET`)
 
-- [ ] **Step 2: Database Schema**
-  - [ ] Define `users` table (id, email, password_hash, name, created_at)
-  - [ ] Define `projects` table (id, user_id, name, color, created_at)
-  - [ ] Define `tasks` table (id, user_id, project_id, title, description, status, priority, due_date, source_text, ai_generated, created_at, updated_at)
-  - [ ] Generate and run initial migration
+- [x] 🟩 **Step 2: Database Schema**
+  - [x] 🟩 Define `users` table (id, email, password_hash, name, created_at)
+  - [x] 🟩 Define `projects` table (id, user_id, name, color, created_at)
+  - [x] 🟩 Define `tasks` table (id, user_id, project_id, title, description, status, priority, due_date, source_text, ai_generated, created_at, updated_at)
+  - [x] 🟩 Generate and run initial migration
 
-- [ ] **Step 3: Auth Setup**
-  - [ ] Configure NextAuth with credentials provider
-  - [ ] Create sign-up and login pages
-  - [ ] Add auth middleware to protect app routes
-  - [ ] Create auth utility helpers (get current user)
+- [x] 🟩 **Step 3: Auth Setup**
+  - [x] 🟩 Configure NextAuth with credentials provider
+  - [x] 🟩 Create sign-up and login pages
+  - [x] 🟩 Add auth middleware to protect app routes (edge-safe split)
+  - [x] 🟩 Create auth utility helpers (get current user)
 
-- [ ] **Step 4: App Layout & Navigation**
-  - [ ] Build sidebar layout (projects list, nav links)
-  - [ ] Build top bar (search placeholder, user menu)
-  - [ ] Create main content area with responsive layout
-  - [ ] Add basic loading and empty states
+- [x] 🟩 **Step 4: App Layout & Navigation**
+  - [x] 🟩 Build sidebar layout (projects list, nav links)
+  - [x] 🟩 Create main content area with responsive layout
+  - [x] 🟩 Add basic loading and empty states
 
-- [ ] **Step 5: Project CRUD**
-  - [ ] Server actions: create, rename, delete project
-  - [ ] Sidebar: project list with color indicators
-  - [ ] Modal/form for creating and editing projects
+- [x] 🟩 **Step 5: Project CRUD**
+  - [x] 🟩 Server actions: create, rename, delete project
+  - [x] 🟩 Sidebar: project list with color indicators
+  - [x] 🟩 Modal/form for creating and editing projects
 
-- [ ] **Step 6: Task CRUD**
-  - [ ] Server actions: create, read, update, delete task
-  - [ ] Task list view with sorting (by status, priority, due date)
-  - [ ] Task list filtering (by project, status, priority)
-  - [ ] Task creation form (title, description, project, priority, due date)
-  - [ ] Task detail panel/modal with inline editing
-  - [ ] Status workflow: `todo` → `in_progress` → `done` → `archived`
+- [x] 🟩 **Step 6: Task CRUD**
+  - [x] 🟩 Server actions: create, read, update, delete task
+  - [x] 🟩 Task list view with sorting (by status, priority, due date)
+  - [x] 🟩 Task list filtering (by project, status, priority)
+  - [x] 🟩 Task creation form (title, description, project, priority, due date)
+  - [x] 🟩 Task detail panel/modal with inline editing
+  - [x] 🟩 Status workflow: `todo` → `in_progress` → `done` → `archived`
 
-- [ ] **Step 7: AI Task Extraction**
-  - [ ] OpenAI service utility (shared client, prompt templates)
-  - [ ] Extract endpoint: raw text → structured task array (title, suggested project, priority, due date)
-  - [ ] "Paste & Extract" UI: textarea modal → preview extracted tasks → confirm to save
-  - [ ] Handle edge cases (empty text, no tasks found, API errors)
+- [x] 🟩 **Step 7: AI Task Extraction**
+  - [x] 🟩 OpenAI service utility (shared client, prompt templates)
+  - [x] 🟩 Extract endpoint: raw text → structured task array (title, suggested project, priority, due date)
+  - [x] 🟩 "Paste & Extract" UI: textarea → preview extracted tasks → confirm to save
+  - [x] 🟩 Handle edge cases (empty text, no tasks found, API errors)
 
-- [ ] **Step 8: AI Auto-Categorization**
-  - [ ] On manual task creation, suggest project + priority if not provided
-  - [ ] Use existing projects list as context for categorization prompt
-  - [ ] Show suggestions as defaults user can override
+- [x] 🟩 **Step 8: AI Auto-Categorization**
+  - [x] 🟩 API endpoint for suggesting project + priority
+  - [x] 🟩 Use existing projects list as context for categorization prompt
 
-- [ ] **Step 9: AI Document Generation**
-  - [ ] Doc generation endpoint: selected tasks → formatted document
-  - [ ] Support 3 templates: status update, meeting brief, action item summary
-  - [ ] UI: select tasks → choose template → preview → copy/download as markdown
+- [x] 🟩 **Step 9: AI Document Generation**
+  - [x] 🟩 Doc generation endpoint: selected tasks → formatted document
+  - [x] 🟩 Support 3 templates: status update, meeting brief, action item summary
+  - [x] 🟩 UI: select tasks → choose template → preview → copy to clipboard
 
-- [ ] **Step 10: Dashboard Home**
-  - [ ] Task summary cards (total, overdue, due this week, completed)
-  - [ ] Upcoming due dates list
-  - [ ] Recent activity feed (last created/updated tasks)
+- [ ] 🟥 **Step 10: Dashboard Home (Enhancement)**
+  - [x] 🟩 Task summary cards (total, overdue, in progress, done)
+  - [ ] 🟥 Upcoming due dates list
+  - [ ] 🟥 Recent activity feed (last created/updated tasks)
 
-- [ ] **Step 11: Docker & Deployment**
-  - [ ] Create Dockerfile (multi-stage build)
-  - [ ] Create docker-compose.yml with volume for SQLite persistence
-  - [ ] Add seed script for demo data
-  - [ ] Update README with setup and run instructions
+- [ ] 🟥 **Step 11: Docker & Deployment**
+  - [ ] 🟥 Create Dockerfile (multi-stage build)
+  - [ ] 🟥 Create docker-compose.yml with volume for SQLite persistence
+  - [ ] 🟥 Add seed script for demo data
+  - [ ] 🟥 Update README with setup and run instructions
