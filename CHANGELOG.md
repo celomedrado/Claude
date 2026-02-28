@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Kanban Board** (`/tasks` → Board toggle): drag-and-drop board view with one column per project + "Unassigned" column. Drag cards between columns to reassign tasks to different projects.
+- List/Board view toggle on the All Tasks page (client-side, no new route)
+- `@dnd-kit/core` for accessible drag-and-drop interactions
+
+### Changed
+- `/tasks` page now renders `TasksView` wrapper (supports both list and board views)
+- OpenAI API error handling: 401 errors now return `503` with actionable message instead of generic `500`
+- API key validation at startup logs key length for easier debugging
+- `AIConfigError` class distinguishes config issues from runtime errors in all AI routes
+
+### Fixed
+- Task detail modal: added `role="dialog"`, `aria-modal`, `aria-labelledby`, close button `aria-label`
+- Task detail modal: Escape key closes modal, click-outside closes modal
+- Task detail modal: `handleSave`/`handleDelete` wrapped in try-catch with inline error display
+- Task detail modal: client-side title validation before save
+- Task detail modal: date picker timezone bug — was using `toISOString()` (UTC), now uses local timezone
+- Kanban drag errors: caught and displayed in dismissible error banner
+
 ## [0.1.0] - 2026-02-28
 
 ### Added
