@@ -1,10 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import { updateTask, deleteTask } from "@/actions/tasks";
 import { Button } from "@/components/ui/button";
 import { X, Trash2 } from "lucide-react";
 import type { TaskItem } from "./task-list";
+
+/** Convert a Date to YYYY-MM-DD using local timezone (avoids UTC date-shift) */
+function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 interface TaskDetailProps {
   task: TaskItem;
@@ -20,40 +28,81 @@ export function TaskDetail({ task, projects, onClose }: TaskDetailProps) {
   const [priority, setPriority] = useState(task.priority);
   const [projectId, setProjectId] = useState(task.projectId || "");
   const [dueDate, setDueDate] = useState(
-    task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""
+    task.dueDate ? toLocalDateString(new Date(task.dueDate)) : ""
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  // Close on Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    },
+    [onClose]
   );
 
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   function handleSave() {
+    if (!title.trim()) {
+      setError("Title is required.");
+      return;
+    }
+    setError(null);
     startTransition(async () => {
-      await updateTask(task.id, {
-        title,
-        description,
-        status,
-        priority,
-        projectId: projectId || null,
-        dueDate: dueDate || null,
-      });
-      onClose();
+      try {
+        await updateTask(task.id, {
+          title,
+          description,
+          status,
+          priority,
+          projectId: projectId || null,
+          dueDate: dueDate || null,
+        });
+        onClose();
+      } catch {
+        setError("Failed to save task. Please try again.");
+      }
     });
   }
 
   function handleDelete() {
     if (!confirm("Delete this task?")) return;
+    setError(null);
     startTransition(async () => {
-      await deleteTask(task.id);
-      onClose();
+      try {
+        await deleteTask(task.id);
+        onClose();
+      } catch {
+        setError("Failed to delete task. Please try again.");
+      }
     });
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="task-detail-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      {/* Stop propagation so clicking inside the modal doesn't close it */}
+      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Edit Task</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <h3 id="task-detail-title" className="text-lg font-semibold text-gray-900">Edit Task</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {error && (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         <div className="space-y-3">
           <div>

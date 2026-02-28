@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -17,7 +17,7 @@ import { updateTask } from "@/actions/tasks";
 import { TaskDetail } from "./task-detail";
 import type { TaskItem } from "./task-list";
 import { cn } from "@/lib/utils";
-import { Circle, Clock, CheckCircle2, Archive, GripVertical } from "lucide-react";
+import { Circle, Clock, CheckCircle2, Archive, GripVertical, X } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Constants — reuse the same visual language as task-list.tsx        */
@@ -83,12 +83,14 @@ function Column({ id, label, color, tasks, onSelectTask, isOver }: ColumnProps) 
       </div>
 
       {/* Cards */}
-      <div className="flex-1 space-y-2 overflow-y-auto p-2" style={{ maxHeight: "calc(100vh - 220px)" }}>
+      <div className="flex-1 space-y-2 overflow-y-auto p-2 max-h-[calc(100vh-14rem)]">
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} onSelect={onSelectTask} />
         ))}
         {tasks.length === 0 && (
-          <p className="py-6 text-center text-xs text-gray-400">No tasks</p>
+          <p className="py-6 text-center text-xs text-gray-400">
+            No tasks yet. Drag tasks here or create one to get started.
+          </p>
         )}
       </div>
     </div>
@@ -194,6 +196,7 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Require a small drag distance before starting — prevents accidental drags on click
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -214,23 +217,24 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
     },
   ];
 
-  function handleDragStart(event: DragStartEvent) {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setError(null);
     setActiveTask(event.active.data.current?.task ?? null);
-  }
+  }, []);
 
-  function handleDragOver(event: DragOverEvent) {
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     setOverColumnId(event.over ? String(event.over.id) : null);
-  }
+  }, []);
 
-  async function handleDragEnd(event: DragEndEvent) {
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     setActiveTask(null);
     setOverColumnId(null);
 
     const { active, over } = event;
     if (!over) return;
 
-    const task = active.data.current?.task as TaskItem | undefined;
-    if (!task) return;
+    const task = active.data.current?.task;
+    if (!task?.id) return;
 
     const targetColumnId = String(over.id);
     const newProjectId = targetColumnId === UNASSIGNED_ID ? null : targetColumnId;
@@ -238,8 +242,12 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
     // Only update if the project actually changed
     if (task.projectId === newProjectId) return;
 
-    await updateTask(task.id, { projectId: newProjectId });
-  }
+    try {
+      await updateTask(task.id, { projectId: newProjectId });
+    } catch {
+      setError("Failed to move task. Please try again.");
+    }
+  }, []);
 
   return (
     <DndContext
@@ -248,6 +256,16 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
+      {/* Error banner — shown if a drag operation fails */}
+      {error && (
+        <div className="mb-3 flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {error}
+          <button onClick={() => setError(null)} className="ml-4 text-red-400 hover:text-red-600">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((col) => (
           <Column
