@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { generateDocument, type DocTemplate } from "@/lib/ai";
+import { generateDocument, AIConfigError, type DocTemplate } from "@/lib/ai";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -23,6 +23,9 @@ export async function POST(req: Request) {
     const document = await generateDocument(tasks, template);
     return NextResponse.json({ document });
   } catch (err) {
+    if (err instanceof AIConfigError) {
+      return NextResponse.json({ error: err.message }, { status: 503 });
+    }
     const message = err instanceof Error ? err.message : "Document generation failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

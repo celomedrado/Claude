@@ -4,10 +4,30 @@ const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) {
   console.warn("⚠ OPENAI_API_KEY is not set. AI features will fail.");
 } else {
-  console.log(`✓ OPENAI_API_KEY loaded (starts with ${apiKey.substring(0, 8)}...)`);
+  console.log(`✓ OPENAI_API_KEY loaded (starts with ${apiKey.substring(0, 12)}..., length: ${apiKey.length})`);
 }
 
 const openai = new OpenAI({ apiKey });
+
+export class AIConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AIConfigError";
+  }
+}
+
+function assertApiKey(): void {
+  if (!apiKey) {
+    throw new AIConfigError(
+      "OPENAI_API_KEY is not configured. Add it to your .env.local file."
+    );
+  }
+  if (apiKey.length < 20) {
+    throw new AIConfigError(
+      "OPENAI_API_KEY appears to be truncated or invalid (too short). Check your .env.local file."
+    );
+  }
+}
 
 export interface ExtractedTask {
   title: string;
@@ -21,7 +41,7 @@ export async function extractTasks(
   rawText: string,
   existingProjects: string[]
 ): Promise<ExtractedTask[]> {
-  console.log("extractTasks: calling OpenAI with key starting:", apiKey?.substring(0, 12));
+  assertApiKey();
   try {
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -58,7 +78,11 @@ If no actionable tasks are found, return { "tasks": [] }.`,
     return [];
   }
   } catch (err: unknown) {
-    console.error("extractTasks OpenAI error:", JSON.stringify(err, Object.getOwnPropertyNames(err as object)));
+    if (err instanceof OpenAI.APIError && err.status === 401) {
+      throw new AIConfigError(
+        "OpenAI rejected the API key (401 Unauthorized). Generate a new key at https://platform.openai.com/api-keys and update .env.local."
+      );
+    }
     throw err;
   }
 }
@@ -68,6 +92,7 @@ export async function categorizeTask(
   description: string,
   existingProjects: string[]
 ): Promise<{ project: string; priority: "low" | "medium" | "high" | "urgent" }> {
+  assertApiKey();
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.1,
@@ -124,6 +149,7 @@ export async function generateDocument(
   tasks: { title: string; description: string; status: string; priority: string; dueDate: string | null; projectName: string | null }[],
   template: DocTemplate
 ): Promise<string> {
+  assertApiKey();
   const taskList = tasks
     .map(
       (t) =>

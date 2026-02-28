@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { categorizeTask } from "@/lib/ai";
+import { categorizeTask, AIConfigError } from "@/lib/ai";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -27,6 +27,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(suggestion);
   } catch (err) {
+    if (err instanceof AIConfigError) {
+      return NextResponse.json({ error: err.message }, { status: 503 });
+    }
     const message = err instanceof Error ? err.message : "Categorization failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
