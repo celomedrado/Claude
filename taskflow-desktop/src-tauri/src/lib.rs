@@ -14,13 +14,11 @@ mod models;
 mod notifications;
 
 use commands::{ai, app, projects, tasks};
-use models::AppSettings;
-use rusqlite::Connection;
 use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -97,7 +95,6 @@ pub fn run() {
                             }
                         }
                         "new_task" => {
-                            // Emit event to frontend to open quick-add bar
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
                                 let _ = window.set_focus();

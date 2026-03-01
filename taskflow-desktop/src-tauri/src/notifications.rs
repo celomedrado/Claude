@@ -65,23 +65,13 @@ pub fn start_overdue_checker(app: &AppHandle) {
                 }
                 notified.insert(id.clone());
 
-                // Use tauri-plugin-notification
-                #[cfg(feature = "notification")]
-                {
-                    use tauri_plugin_notification::NotificationExt;
-                    let _ = app_handle
-                        .notification()
-                        .builder()
-                        .title("Task Overdue")
-                        .body(&format!("{title} is past due"))
-                        .show();
-                }
-
-                // Fallback: log if notification plugin not available
-                #[cfg(not(feature = "notification"))]
-                {
-                    eprintln!("[notification] Task overdue: {title}");
-                }
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app_handle
+                    .notification()
+                    .builder()
+                    .title("Task Overdue")
+                    .body(&format!("{title} is past due"))
+                    .show();
             }
 
             // Clean up notified set: remove IDs no longer in overdue list

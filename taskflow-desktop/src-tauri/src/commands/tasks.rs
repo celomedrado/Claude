@@ -37,7 +37,7 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
 
 /// Computes the next due date for a recurrence rule (mirrors task-parser.ts).
 fn get_next_due_date(rule: &str) -> i64 {
-    use chrono::{Datelike, Local, NaiveDate};
+    use chrono::{Datelike, Local};
 
     let today = Local::now().date_naive();
 
@@ -48,12 +48,6 @@ fn get_next_due_date(rule: &str) -> i64 {
         }
         "weekdays" => {
             let dow = today.weekday().num_days_from_monday(); // Mon=0 .. Sun=6
-            let days_until = if dow >= 4 {
-                // Fri(4) → +3 Mon, Sat(5) → +2 Mon, Sun(6) → +1 Mon
-                7 - dow as i64 + if dow == 4 { 3 } else { (7 - dow) as i64 }
-            } else {
-                1 // next weekday is tomorrow
-            };
             let days_add = match dow {
                 4 => 3, // Fri → Mon
                 5 => 2, // Sat → Mon

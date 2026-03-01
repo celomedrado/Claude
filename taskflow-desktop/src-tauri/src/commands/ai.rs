@@ -3,6 +3,7 @@
 //! The Rust backend makes HTTP requests to OpenAI's API directly,
 //! avoiding the need for a Next.js API route layer.
 
+use crate::db;
 use crate::models::{AppSettings, ExtractedTask, TaskForDoc};
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
@@ -151,14 +152,14 @@ pub async fn extract_tasks(
         );
     }
 
-    // Fire-and-forget: update the work summary in the background
+    // Fire-and-forget: update the work summary in the background.
+    // Opens a fresh DB connection since State lifetimes can't cross spawn.
     let api_key_clone = api_key.clone();
     let text_clone = text.clone();
     let work_summary_clone = work_summary.clone();
-    let db_clone = db.inner().clone();
     tokio::spawn(async move {
         if let Ok(new_summary) = update_work_summary_internal(&api_key_clone, work_summary_clone.as_deref(), &text_clone).await {
-            if let Ok(conn) = db_clone.lock() {
+            if let Ok(conn) = rusqlite::Connection::open(db::db_path()) {
                 let _ = conn.execute(
                     "UPDATE users SET work_summary = ?1 WHERE id = ?2",
                     params![new_summary, USER_ID],
