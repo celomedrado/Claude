@@ -4,9 +4,65 @@
 - **Goal:** Transform the TaskFlow Next.js web app into a native macOS desktop application with deep OS integration
 - **Priority/Target:** High / 2026-01-03
 - **Owners:** PM / ARCH / FE / BE / QA / DM
-- **Status:** Kickoff — both mode (Agents Plan + Solo Plan + Comparison)
+- **Status:** Implementation Complete (100%)
 - **Risks:** Major architectural refactor (server actions → IPC), auth rewrite, Next.js server-side features incompatible with desktop, significant effort
-- **Decisions needed:** Packaging framework (Tauri vs Electron), auth strategy, data sync model
+- **Decisions made:** Tauri v2 (not Electron), single-user no-auth, SPA with React Router
+
+---
+
+## Implementation Progress
+
+| Phase | Status | Description |
+|---|---|---|
+| **Phase 1** | ✅ Complete | Tauri v2 + Vite + React project scaffold |
+| **Phase 2** | ✅ Complete | Rust backend: SQLite, task/project CRUD IPC commands |
+| **Phase 3** | ✅ Complete | AI features (OpenAI proxy), settings, file export |
+| **Phase 4** | ✅ Complete | Native macOS: system tray, notifications, global shortcuts, auto-start |
+| **Phase 5** | ✅ Complete | Settings page, data import, React SPA router, all components ported |
+
+### Files Created: `taskflow-desktop/`
+
+**Project config:**
+- `package.json`, `tsconfig.json`, `vite.config.ts`, `postcss.config.js`, `index.html`
+
+**Rust backend (`src-tauri/`):**
+- `Cargo.toml`, `tauri.conf.json`, `build.rs`
+- `src/main.rs` — entry point
+- `src/lib.rs` — Tauri app setup (plugins, tray, shortcuts, notifications)
+- `src/db.rs` — SQLite init + migrations
+- `src/models.rs` — shared structs (Task, Project, Settings, etc.)
+- `src/notifications.rs` — background overdue task checker
+- `src/commands/tasks.rs` — CRUD + recurrence + dashboard
+- `src/commands/projects.rs` — CRUD with task counts
+- `src/commands/ai.rs` — OpenAI proxy (extract, generate, categorize)
+- `src/commands/app.rs` — settings, file export, data import
+
+**React frontend (`src/`):**
+- `main.tsx` — SPA entry point with React Router
+- `globals.css` — Tailwind + theme variables
+- `lib/types.ts` — shared TypeScript types
+- `lib/api.ts` — all Tauri IPC invoke wrappers
+- `lib/utils.ts` — cn() utility
+- `lib/task-parser.ts` — smart task input parser (ported as-is)
+- `hooks/use-hotkeys.ts` — keyboard shortcut hook
+- `components/app-shell.tsx` — layout with sidebar + quick-add
+- `components/sidebar.tsx` — navigation (React Router)
+- `components/quick-add-provider.tsx` — Cmd+K + global shortcut listener
+- `components/quick-add-bar.tsx` — command palette for task creation
+- `components/task-list.tsx` — list view with filters
+- `components/task-detail.tsx` — edit modal
+- `components/task-form.tsx` — inline creation form
+- `components/tasks-view.tsx` — list/board toggle
+- `components/kanban-board.tsx` — drag-and-drop board
+- `components/project-form.tsx` — create/edit project
+- `components/ui/button.tsx` — reusable button component
+- `pages/dashboard.tsx` — stats + upcoming + recent
+- `pages/tasks.tsx` — all tasks view
+- `pages/extract.tsx` — AI task extraction
+- `pages/generate.tsx` — AI document generation + export
+- `pages/settings.tsx` — app preferences (API key, auto-launch, notifications)
+- `pages/projects/index.tsx` — project list
+- `pages/projects/detail.tsx` — project detail with tasks
 
 ---
 
