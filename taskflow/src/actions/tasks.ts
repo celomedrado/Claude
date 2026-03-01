@@ -20,6 +20,8 @@ export type CreateTaskInput = {
   recurrenceRule?: string | null;
   /** Links to the original recurring task (set automatically) */
   recurrenceSourceId?: string | null;
+  /** Sort order within a Kanban column (fractional indexing) */
+  sortOrder?: number;
 };
 
 export async function createTask(input: CreateTaskInput) {
@@ -40,6 +42,7 @@ export async function createTask(input: CreateTaskInput) {
       status: input.status || "todo",
       sourceText: input.sourceText || null,
       aiGenerated: input.aiGenerated || false,
+      sortOrder: input.sortOrder ?? 0,
     })
     .returning();
 
@@ -81,6 +84,7 @@ export async function updateTask(
   if (updates.dueDate !== undefined) {
     setValues.dueDate = updates.dueDate ? new Date(updates.dueDate) : null;
   }
+  if (updates.sortOrder !== undefined) setValues.sortOrder = updates.sortOrder;
 
   await db
     .update(tasks)

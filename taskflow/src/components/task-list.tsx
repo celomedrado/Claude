@@ -21,6 +21,7 @@ export interface TaskItem {
   aiGenerated: boolean;
   createdAt: Date | null;
   recurrenceRule?: string | null;
+  sortOrder?: number | null;
 }
 
 interface TaskListProps {

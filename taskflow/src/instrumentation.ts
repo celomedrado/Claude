@@ -17,12 +17,19 @@ export async function register() {
   try {
     const db = new Database(dbPath);
 
-    for (const col of ["recurrence_rule TEXT", "recurrence_source_id TEXT"]) {
+    for (const col of ["recurrence_rule TEXT", "recurrence_source_id TEXT", "sort_order REAL DEFAULT 0"]) {
       try {
         db.exec(`ALTER TABLE tasks ADD COLUMN ${col}`);
       } catch {
         // Column already exists — expected
       }
+    }
+
+    // Backfill sort_order for existing tasks that still have the default 0
+    try {
+      db.exec(`UPDATE tasks SET sort_order = rowid WHERE sort_order = 0 OR sort_order IS NULL`);
+    } catch {
+      // Table may not exist yet
     }
 
     db.close();

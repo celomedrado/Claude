@@ -1,18 +1,28 @@
 "use client";
 
-import { useState, useCallback, useRef, memo } from "react";
+import { useState, useCallback, useRef, memo, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
   useDroppable,
-  useDraggable,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
+  closestCorners,
   type DragStartEvent,
   type DragEndEvent,
   type DragOverEvent,
 } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import { updateTask, deleteTask, createTask } from "@/actions/tasks";
 import { TaskDetail } from "./task-detail";
 import type { TaskItem } from "./task-list";
@@ -31,10 +41,27 @@ const PRIORITY_BADGES = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Column — a droppable project lane                                 */
+/*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
 const UNASSIGNED_ID = "__unassigned__";
+
+/** Compute a fractional sort order between two neighbors. */
+function computeSortOrder(prev: number | null, next: number | null): number {
+  if (prev != null && next != null) return (prev + next) / 2;
+  if (prev != null) return prev + 1;
+  if (next != null) return next / 2;
+  return 0;
+}
+
+/** Get the column ID (project ID or UNASSIGNED) for a task. */
+function getColumnId(task: TaskItem): string {
+  return task.projectId || UNASSIGNED_ID;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Column — a droppable + sortable project lane                      */
+/* ------------------------------------------------------------------ */
 
 interface ColumnProps {
   id: string;
@@ -50,16 +77,22 @@ function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: Colu
   const { setNodeRef } = useDroppable({ id });
   const [showAddForm, setShowAddForm] = useState(false);
   const addInputRef = useRef<HTMLInputElement>(null);
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
 
   async function handleAddTask(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const title = addInputRef.current?.value.trim();
     if (!title) return;
 
+    const maxSort = tasks.length > 0
+      ? Math.max(...tasks.map((t) => t.sortOrder ?? 0))
+      : 0;
+
     try {
       await createTask({
         title,
         projectId: id === UNASSIGNED_ID ? null : id,
+        sortOrder: maxSort + 1,
       });
       setShowAddForm(false);
     } catch {
@@ -87,17 +120,19 @@ function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: Colu
         </span>
       </div>
 
-      {/* Cards */}
-      <div className="flex-1 space-y-2 overflow-y-auto p-2 max-h-[calc(100vh-14rem)]">
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onSelect={onSelectTask} onError={onError} />
-        ))}
-        {tasks.length === 0 && !showAddForm && (
-          <p className="py-6 text-center text-xs text-gray-400">
-            No tasks yet. Drag tasks here or create one to get started.
-          </p>
-        )}
-      </div>
+      {/* Cards — sortable context for intra-column reorder */}
+      <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+        <div className="flex-1 space-y-2 overflow-y-auto p-2 max-h-[calc(100vh-14rem)]">
+          {tasks.map((task) => (
+            <SortableTaskCard key={task.id} task={task} onSelect={onSelectTask} onError={onError} />
+          ))}
+          {tasks.length === 0 && !showAddForm && (
+            <p className="py-6 text-center text-xs text-gray-400">
+              No tasks yet. Drag tasks here or create one to get started.
+            </p>
+          )}
+        </div>
+      </SortableContext>
 
       {/* Add task footer */}
       <div className="border-t border-gray-200 p-2">
@@ -142,15 +177,59 @@ function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: Colu
 }
 
 /* ------------------------------------------------------------------ */
-/*  TaskCard — a draggable card within a column                       */
+/*  SortableTaskCard — a sortable card within a column                 */
 /* ------------------------------------------------------------------ */
 
-const TaskCard = memo(function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSelect: (t: TaskItem) => void; overlay?: boolean; onError?: (msg: string) => void }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: task.id,
-    data: { task },
-  });
+const SortableTaskCard = memo(function SortableTaskCard({ task, onSelect, onError }: { task: TaskItem; onSelect: (t: TaskItem) => void; onError?: (msg: string) => void }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, data: { task, columnId: getColumnId(task) } });
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskCardContent
+        task={task}
+        onSelect={onSelect}
+        onError={onError}
+        isDragging={isDragging}
+        listeners={listeners}
+        attributes={attributes}
+      />
+    </div>
+  );
+});
+
+/* ------------------------------------------------------------------ */
+/*  TaskCardContent — shared card rendering (sortable + overlay)       */
+/* ------------------------------------------------------------------ */
+
+const TaskCardContent = memo(function TaskCardContent({
+  task,
+  onSelect,
+  overlay,
+  onError,
+  isDragging,
+  listeners,
+  attributes,
+}: {
+  task: TaskItem;
+  onSelect: (t: TaskItem) => void;
+  overlay?: boolean;
+  onError?: (msg: string) => void;
+  isDragging?: boolean;
+  listeners?: SyntheticListenerMap;
+  attributes?: React.HTMLAttributes<HTMLElement> & { role?: string; tabIndex?: number };
+}) {
   const isOverdue =
     task.dueDate &&
     task.status !== "done" &&
@@ -178,7 +257,6 @@ const TaskCard = memo(function TaskCard({ task, onSelect, overlay, onError }: { 
 
   return (
     <div
-      ref={overlay ? undefined : setNodeRef}
       className={cn(
         "group relative rounded-md border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-shadow",
         isDragging && "opacity-30",
@@ -293,36 +371,61 @@ interface KanbanBoardProps {
   projects: { id: string; name: string; color: string }[];
 }
 
-export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
+export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
-  // Require a small drag distance before starting — prevents accidental drags on click
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Local task order for optimistic reorder
+  const [localTasks, setLocalTasks] = useState<TaskItem[]>(propTasks);
+
+  // Keep localTasks in sync when props change (server revalidation)
+  const [prevPropTasks, setPrevPropTasks] = useState(propTasks);
+  if (propTasks !== prevPropTasks) {
+    setPrevPropTasks(propTasks);
+    setLocalTasks(propTasks);
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // Filter out completed/archived tasks unless the toggle is on
   const visibleTasks = showCompleted
-    ? tasks
-    : tasks.filter((t) => t.status !== "done" && t.status !== "archived");
+    ? localTasks
+    : localTasks.filter((t) => t.status !== "done" && t.status !== "archived");
 
-  // Build columns: one per project + unassigned
-  const columns = [
+  // Build columns: one per project + unassigned, sorted by sortOrder
+  const columns = useMemo(() => [
     ...projects.map((p) => ({
       id: p.id,
       label: p.name,
       color: p.color,
-      tasks: visibleTasks.filter((t) => t.projectId === p.id),
+      tasks: visibleTasks
+        .filter((t) => t.projectId === p.id)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     })),
     {
       id: UNASSIGNED_ID,
       label: "Unassigned",
       color: "#9ca3af",
-      tasks: visibleTasks.filter((t) => !t.projectId),
+      tasks: visibleTasks
+        .filter((t) => !t.projectId)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     },
-  ];
+  ], [projects, visibleTasks]);
+
+  // Find which column a task belongs to
+  function findColumn(taskId: string): { col: typeof columns[0]; index: number } | null {
+    for (const col of columns) {
+      const index = col.tasks.findIndex((t) => t.id === taskId);
+      if (index !== -1) return { col, index };
+    }
+    return null;
+  }
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setError(null);
@@ -330,8 +433,27 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
   }, []);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
-    setOverColumnId(event.over ? String(event.over.id) : null);
-  }, []);
+    const { over } = event;
+    if (!over) {
+      setOverColumnId(null);
+      return;
+    }
+
+    // over.id can be a column ID or a task ID
+    const overIdStr = String(over.id);
+
+    // Check if it's a column
+    const isColumn = projects.some((p) => p.id === overIdStr) || overIdStr === UNASSIGNED_ID;
+    if (isColumn) {
+      setOverColumnId(overIdStr);
+    } else {
+      // It's a task — find which column it's in
+      const overData = over.data.current;
+      if (overData?.columnId) {
+        setOverColumnId(overData.columnId);
+      }
+    }
+  }, [projects]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     setActiveTask(null);
@@ -340,26 +462,87 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
     const { active, over } = event;
     if (!over) return;
 
-    const task = active.data.current?.task;
-    if (!task?.id) return;
+    const activeTaskData = active.data.current?.task as TaskItem | undefined;
+    if (!activeTaskData?.id) return;
 
-    const targetColumnId = String(over.id);
+    const activeId = activeTaskData.id;
+    const overId = String(over.id);
+
+    // Determine source column
+    const source = findColumn(activeId);
+    if (!source) return;
+
+    // Determine target column and position
+    const isOverColumn = projects.some((p) => p.id === overId) || overId === UNASSIGNED_ID;
+
+    let targetColumnId: string;
+    let targetIndex: number;
+
+    if (isOverColumn) {
+      // Dropped on a column directly — append to end
+      targetColumnId = overId;
+      const targetCol = columns.find((c) => c.id === targetColumnId);
+      targetIndex = targetCol ? targetCol.tasks.length : 0;
+    } else {
+      // Dropped on a task — find its column and position
+      const target = findColumn(overId);
+      if (!target) return;
+      targetColumnId = target.col.id;
+      targetIndex = target.index;
+    }
+
+    const sourceColumnId = source.col.id;
+    const sourceIndex = source.index;
+
+    // Same column, same position — no-op
+    if (sourceColumnId === targetColumnId && sourceIndex === targetIndex) return;
+
     const newProjectId = targetColumnId === UNASSIGNED_ID ? null : targetColumnId;
-    const currentProjectId = task.projectId ?? null;
+    const currentProjectId = activeTaskData.projectId ?? null;
+    const isCrossColumn = sourceColumnId !== targetColumnId;
 
-    // Only update if the project actually changed
-    if (currentProjectId === newProjectId) return;
+    // Compute new sort order using fractional indexing
+    let targetCol = columns.find((c) => c.id === targetColumnId);
+    let colTasks = targetCol ? [...targetCol.tasks] : [];
 
+    // For same-column reorder, remove the active task first
+    if (!isCrossColumn) {
+      colTasks = colTasks.filter((t) => t.id !== activeId);
+    }
+
+    const prevTask = targetIndex > 0 ? colTasks[targetIndex - 1] : null;
+    const nextTask = targetIndex < colTasks.length ? colTasks[targetIndex] : null;
+    const newSortOrder = computeSortOrder(
+      prevTask ? (prevTask.sortOrder ?? 0) : null,
+      nextTask ? (nextTask.sortOrder ?? 0) : null,
+    );
+
+    // Optimistic update
+    setLocalTasks((prev) =>
+      prev.map((t) =>
+        t.id === activeId
+          ? { ...t, projectId: newProjectId, sortOrder: newSortOrder }
+          : t
+      )
+    );
+
+    // Persist
     try {
-      await updateTask(task.id, { projectId: newProjectId });
+      const updates: Record<string, unknown> = { sortOrder: newSortOrder };
+      if (isCrossColumn) updates.projectId = newProjectId;
+      await updateTask(activeId, updates as Parameters<typeof updateTask>[1]);
     } catch {
+      // Roll back optimistic update
+      setLocalTasks(propTasks);
       setError("Failed to move task. Please try again.");
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns, projects, propTasks]);
 
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -408,7 +591,7 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
       {/* Drag overlay — shows a floating copy of the card being dragged */}
       <DragOverlay>
         {activeTask ? (
-          <TaskCard task={activeTask} onSelect={() => {}} overlay />
+          <TaskCardContent task={activeTask} onSelect={() => {}} overlay />
         ) : null}
       </DragOverlay>
 
