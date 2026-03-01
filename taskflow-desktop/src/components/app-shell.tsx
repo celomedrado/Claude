@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./sidebar";
 import { QuickAddProvider } from "./quick-add-provider";
+import { UpdateChecker } from "./update-checker";
 import { listProjects } from "@/lib/api";
 import type { Project } from "@/lib/types";
 
@@ -41,6 +42,7 @@ export function AppShell() {
         <Outlet />
       </main>
       <QuickAddProvider projects={projects} />
+      <UpdateChecker />
     </div>
   );
 }
