@@ -13,11 +13,11 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from "@dnd-kit/core";
-import { updateTask } from "@/actions/tasks";
+import { updateTask, deleteTask } from "@/actions/tasks";
 import { TaskDetail } from "./task-detail";
 import type { TaskItem } from "./task-list";
 import { cn } from "@/lib/utils";
-import { Circle, Clock, CheckCircle2, Archive, GripVertical, X } from "lucide-react";
+import { Circle, Clock, CheckCircle2, Archive, GripVertical, X, Check, Trash2, Eye, EyeOff, Repeat } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Constants — reuse the same visual language as task-list.tsx        */
@@ -115,16 +115,67 @@ function TaskCard({ task, onSelect, overlay }: { task: TaskItem; onSelect: (t: T
     task.status !== "archived" &&
     new Date(task.dueDate) < new Date();
 
+  async function handleComplete(e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await updateTask(task.id, { status: "done" });
+    } catch { /* error handled at board level via revalidation */ }
+  }
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Delete this task?")) return;
+    try {
+      await deleteTask(task.id);
+    } catch { /* error handled at board level via revalidation */ }
+  }
+
   return (
     <div
       ref={overlay ? undefined : setNodeRef}
       className={cn(
-        "rounded-md border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-shadow",
+        "group relative rounded-md border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-shadow",
         isDragging && "opacity-30",
         overlay && "shadow-lg ring-2 ring-indigo-300",
         !overlay && "hover:shadow-md"
       )}
     >
+      {/* Action buttons — visible on hover, top-right corner */}
+      {!overlay && task.status !== "done" && (
+        <div className="absolute top-1.5 right-1.5 hidden gap-0.5 group-hover:flex">
+          <button
+            onClick={handleComplete}
+            className="rounded p-1 text-gray-400 hover:bg-green-50 hover:text-green-600"
+            aria-label="Mark as done"
+            title="Mark as done"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            aria-label="Delete task"
+            title="Delete task"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Show delete only for already-completed tasks */}
+      {!overlay && task.status === "done" && (
+        <div className="absolute top-1.5 right-1.5 hidden gap-0.5 group-hover:flex">
+          <button
+            onClick={handleDelete}
+            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            aria-label="Delete task"
+            title="Delete task"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-start gap-2">
         {/* Drag handle */}
         <button
@@ -171,6 +222,12 @@ function TaskCard({ task, onSelect, overlay }: { task: TaskItem; onSelect: (t: T
               </span>
             )}
 
+            {task.recurrenceRule && (
+              <span className="text-purple-500" title="Recurring task">
+                <Repeat className="h-3 w-3" />
+              </span>
+            )}
+
             {task.aiGenerated && (
               <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                 AI
@@ -197,9 +254,15 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Require a small drag distance before starting — prevents accidental drags on click
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // Filter out completed/archived tasks unless the toggle is on
+  const visibleTasks = showCompleted
+    ? tasks
+    : tasks.filter((t) => t.status !== "done" && t.status !== "archived");
 
   // Build columns: one per project + unassigned
   const columns = [
@@ -207,13 +270,13 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
       id: p.id,
       label: p.name,
       color: p.color,
-      tasks: tasks.filter((t) => t.projectId === p.id),
+      tasks: visibleTasks.filter((t) => t.projectId === p.id),
     })),
     {
       id: UNASSIGNED_ID,
       label: "Unassigned",
       color: "#9ca3af",
-      tasks: tasks.filter((t) => !t.projectId),
+      tasks: visibleTasks.filter((t) => !t.projectId),
     },
   ];
 
@@ -256,6 +319,22 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
+      {/* Show completed toggle */}
+      <div className="mb-3 flex items-center">
+        <button
+          onClick={() => setShowCompleted(!showCompleted)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+            showCompleted
+              ? "bg-indigo-100 text-indigo-700"
+              : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+          )}
+        >
+          {showCompleted ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {showCompleted ? "Hide completed" : "Show completed"}
+        </button>
+      </div>
+
       {/* Error banner — shown if a drag operation fails */}
       {error && (
         <div className="mb-3 flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">

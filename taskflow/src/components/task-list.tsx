@@ -5,7 +5,7 @@ import { updateTask, deleteTask } from "@/actions/tasks";
 import { TaskForm } from "./task-form";
 import { TaskDetail } from "./task-detail";
 import { Button } from "@/components/ui/button";
-import { Plus, Circle, Clock, CheckCircle2, Archive } from "lucide-react";
+import { Plus, Circle, Clock, CheckCircle2, Archive, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface TaskItem {
@@ -20,6 +20,7 @@ export interface TaskItem {
   projectColor: string | null;
   aiGenerated: boolean;
   createdAt: Date | null;
+  recurrenceRule?: string | null;
 }
 
 interface TaskListProps {
@@ -200,6 +201,12 @@ export function TaskList({ tasks, projects, currentProjectId }: TaskListProps) {
               >
                 {task.priority}
               </span>
+
+              {task.recurrenceRule && (
+                <span className="shrink-0 text-purple-500" title="Recurring task">
+                  <Repeat className="h-4 w-4" />
+                </span>
+              )}
 
               {task.aiGenerated && (
                 <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">

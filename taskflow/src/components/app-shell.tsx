@@ -1,4 +1,5 @@
 import { Sidebar } from "./sidebar";
+import { QuickAddProvider } from "./quick-add-provider";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { auth } from "@/lib/auth";
@@ -18,6 +19,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-gray-50">
       <Sidebar projects={userProjects} />
       <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      {/* Global quick-add command bar — listens for Cmd/Ctrl+K */}
+      <QuickAddProvider projects={userProjects} />
     </div>
   );
 }

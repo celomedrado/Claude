@@ -5,6 +5,7 @@ import { tasks } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getNextDueDate } from "@/lib/task-parser";
 
 export type CreateTaskInput = {
   title: string;
@@ -15,6 +16,10 @@ export type CreateTaskInput = {
   status?: "todo" | "in_progress" | "done" | "archived";
   sourceText?: string | null;
   aiGenerated?: boolean;
+  /** Recurrence pattern: "daily", "weekdays", or "weekly:N" */
+  recurrenceRule?: string | null;
+  /** Links to the original recurring task (set automatically) */
+  recurrenceSourceId?: string | null;
 };
 
 export async function createTask(input: CreateTaskInput) {
@@ -35,6 +40,8 @@ export async function createTask(input: CreateTaskInput) {
       status: input.status || "todo",
       sourceText: input.sourceText || null,
       aiGenerated: input.aiGenerated || false,
+      recurrenceRule: input.recurrenceRule || null,
+      recurrenceSourceId: input.recurrenceSourceId || null,
     })
     .returning();
 
@@ -66,6 +73,44 @@ export async function updateTask(
     .update(tasks)
     .set(setValues)
     .where(and(eq(tasks.id, taskId), eq(tasks.userId, session.user.id)));
+
+  // Recurrence: when a recurring task is marked as "done", create the next occurrence
+  if (updates.status === "done") {
+    const [completedTask] = await db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, taskId), eq(tasks.userId, session.user.id)));
+
+    if (completedTask?.recurrenceRule) {
+      // Guard: only create next occurrence if one doesn't already exist
+      const sourceId = completedTask.recurrenceSourceId || completedTask.id;
+      const [existing] = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.recurrenceSourceId, sourceId),
+            eq(tasks.status, "todo"),
+            eq(tasks.userId, session.user.id)
+          )
+        );
+
+      if (!existing) {
+        const nextDue = getNextDueDate(completedTask.recurrenceRule);
+        await db.insert(tasks).values({
+          userId: session.user.id,
+          title: completedTask.title,
+          description: completedTask.description || "",
+          projectId: completedTask.projectId,
+          priority: completedTask.priority as CreateTaskInput["priority"],
+          dueDate: new Date(nextDue),
+          status: "todo",
+          recurrenceRule: completedTask.recurrenceRule,
+          recurrenceSourceId: sourceId,
+        });
+      }
+    }
+  }
 
   revalidatePath("/");
 }

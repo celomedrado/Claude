@@ -36,6 +36,10 @@ export const tasks = sqliteTable("tasks", {
   status: text("status", { enum: ["todo", "in_progress", "done", "archived"] }).notNull().default("todo"),
   priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
   dueDate: integer("due_date", { mode: "timestamp" }),
+  /** Recurrence pattern: "daily", "weekdays", or "weekly:N" (N = day-of-week 0–6). */
+  recurrenceRule: text("recurrence_rule"),
+  /** Links to the original recurring task for history tracking. */
+  recurrenceSourceId: text("recurrence_source_id"),
   sourceText: text("source_text"),
   aiGenerated: integer("ai_generated", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),

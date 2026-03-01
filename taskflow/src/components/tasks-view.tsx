@@ -14,7 +14,7 @@ interface TasksViewProps {
 }
 
 export function TasksView({ tasks, projects }: TasksViewProps) {
-  const [view, setView] = useState<ViewMode>("list");
+  const [view, setView] = useState<ViewMode>("board");
 
   return (
     <div>
