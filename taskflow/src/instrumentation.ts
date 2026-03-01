@@ -5,10 +5,11 @@
  * has been applied.
  */
 export async function register() {
-  // Only run on the server (not edge runtime)
-  if (typeof window !== "undefined") return;
+  // Only run in the Node.js runtime — skip edge runtime (middleware)
+  if (process.env.NEXT_RUNTIME === "edge" || typeof window !== "undefined") return;
 
-  const Database = (await import("better-sqlite3")).default;
+  // Dynamic imports so the edge bundler never touches these modules
+  const { default: Database } = await import("better-sqlite3");
   const path = await import("path");
 
   const dbPath = path.join(process.cwd(), "data", "taskflow.db");
