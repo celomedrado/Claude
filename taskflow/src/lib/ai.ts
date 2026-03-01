@@ -4,7 +4,7 @@ const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) {
   console.warn("⚠ OPENAI_API_KEY is not set. AI features will fail.");
 } else {
-  console.log(`✓ OPENAI_API_KEY loaded (starts with ${apiKey.substring(0, 12)}..., length: ${apiKey.length})`);
+  console.log(`✓ OPENAI_API_KEY loaded (length: ${apiKey.length})`);
 }
 
 const openai = new OpenAI({ apiKey });

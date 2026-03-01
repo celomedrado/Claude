@@ -28,6 +28,7 @@ export default async function TasksPage() {
       projectId: tasks.projectId,
       aiGenerated: tasks.aiGenerated,
       createdAt: tasks.createdAt,
+      sortOrder: tasks.sortOrder,
     })
     .from(tasks)
     .where(eq(tasks.userId, session.user.id));

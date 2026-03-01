@@ -1,10 +1,11 @@
 "use server";
 
-import { db } from "@/db";
+import { db, sqlite } from "@/db";
 import { tasks } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getNextDueDate } from "@/lib/task-parser";
 
 export type CreateTaskInput = {
   title: string;
@@ -15,6 +16,12 @@ export type CreateTaskInput = {
   status?: "todo" | "in_progress" | "done" | "archived";
   sourceText?: string | null;
   aiGenerated?: boolean;
+  /** Recurrence pattern: "daily", "weekdays", or "weekly:N" */
+  recurrenceRule?: string | null;
+  /** Links to the original recurring task (set automatically) */
+  recurrenceSourceId?: string | null;
+  /** Sort order within a Kanban column (fractional indexing) */
+  sortOrder?: number;
 };
 
 export async function createTask(input: CreateTaskInput) {
@@ -35,8 +42,24 @@ export async function createTask(input: CreateTaskInput) {
       status: input.status || "todo",
       sourceText: input.sourceText || null,
       aiGenerated: input.aiGenerated || false,
+      sortOrder: input.sortOrder ?? 0,
     })
     .returning();
+
+  // Persist recurrence fields via raw SQL (columns live outside the
+  // Drizzle schema to avoid errors when the migration hasn't run yet).
+  if (task && (input.recurrenceRule || input.recurrenceSourceId)) {
+    try {
+      sqlite
+        .prepare("UPDATE tasks SET recurrence_rule = ?, recurrence_source_id = ? WHERE id = ?")
+        .run(input.recurrenceRule || null, input.recurrenceSourceId || null, task.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("no such column")) {
+        throw err;
+      }
+    }
+  }
 
   revalidatePath("/");
   return task;
@@ -61,11 +84,62 @@ export async function updateTask(
   if (updates.dueDate !== undefined) {
     setValues.dueDate = updates.dueDate ? new Date(updates.dueDate) : null;
   }
+  if (updates.sortOrder !== undefined) setValues.sortOrder = updates.sortOrder;
 
   await db
     .update(tasks)
     .set(setValues)
     .where(and(eq(tasks.id, taskId), eq(tasks.userId, session.user.id)));
+
+  // Recurrence-on-complete: when a recurring task is marked "done",
+  // schedule the next occurrence. Uses raw SQL since recurrence columns
+  // live outside the Drizzle schema.
+  if (updates.status === "done") {
+    try {
+      const row = sqlite
+        .prepare("SELECT id, user_id, title, description, project_id, priority, recurrence_rule, recurrence_source_id FROM tasks WHERE id = ? AND user_id = ?")
+        .get(taskId, session.user.id) as { id: string; user_id: string; title: string; description: string; project_id: string | null; priority: string; recurrence_rule: string | null; recurrence_source_id: string | null } | undefined;
+
+      if (row?.recurrence_rule) {
+        const sourceId = row.recurrence_source_id || row.id;
+
+        // Guard: don't duplicate if a todo occurrence already exists
+        const existing = sqlite
+          .prepare("SELECT id FROM tasks WHERE recurrence_source_id = ? AND status = 'todo' AND user_id = ?")
+          .get(sourceId, session.user.id);
+
+        if (!existing) {
+          const nextDue = getNextDueDate(row.recurrence_rule);
+          const newId = crypto.randomUUID();
+          sqlite
+            .prepare(`
+              INSERT INTO tasks (id, user_id, title, description, project_id, priority, due_date, status, recurrence_rule, recurrence_source_id, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?, ?)
+            `)
+            .run(
+              newId,
+              session.user.id,
+              row.title,
+              row.description || "",
+              row.project_id,
+              row.priority,
+              Math.floor(new Date(nextDue).getTime() / 1000),
+              row.recurrence_rule,
+              sourceId,
+              Math.floor(Date.now() / 1000),
+              Math.floor(Date.now() / 1000),
+            );
+        }
+      }
+    } catch (err: unknown) {
+      // Only ignore "no such column" errors (recurrence columns not yet migrated).
+      // Re-throw anything else so real bugs surface.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("no such column")) {
+        throw err;
+      }
+    }
+  }
 
   revalidatePath("/");
 }

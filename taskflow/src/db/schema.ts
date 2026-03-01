@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -40,4 +40,12 @@ export const tasks = sqliteTable("tasks", {
   aiGenerated: integer("ai_generated", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  sortOrder: real("sort_order").default(0),
 });
+
+/*
+ * Recurrence columns (recurrence_rule, recurrence_source_id) are added
+ * dynamically via ALTER TABLE in src/db/index.ts. They are NOT declared
+ * in the Drizzle schema to avoid "no such column" errors when the DB
+ * hasn't been migrated yet. All recurrence logic uses raw SQL instead.
+ */

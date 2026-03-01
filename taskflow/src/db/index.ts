@@ -10,3 +10,7 @@ sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
+
+/** Raw SQLite handle — used for recurrence queries that reference
+ *  columns not in the Drizzle schema. */
+export { sqlite };

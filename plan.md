@@ -1,6 +1,6 @@
 # Feature Implementation Plan: Task Manager Commands & Kanban UX
 
-**Overall Progress:** `0%`
+**Overall Progress:** `100%`
 
 ## TLDR
 
@@ -16,83 +16,83 @@ Four connected improvements to TaskFlow: make Kanban the default view with inlin
 
 ## Tasks
 
-- [ ] 🟥 **Phase 1: Kanban Default View + Card Actions**
-  - [ ] 🟥 **1.1 Change default view to "board"**
+- [x] 🟩 **Phase 1: Kanban Default View + Card Actions**
+  - [x] 🟩 **1.1 Change default view to "board"**
     - File: `src/components/tasks-view.tsx`
     - Change `useState<ViewMode>("list")` → `useState<ViewMode>("board")`
-  - [ ] 🟥 **1.2 Add complete & delete action buttons to Kanban TaskCard**
+  - [x] 🟩 **1.2 Add complete & delete action buttons to Kanban TaskCard**
     - File: `src/components/kanban-board.tsx`
     - Add a checkmark button (mark done → calls `updateTask(id, { status: "done" })`)
     - Add a trash button (delete → calls `deleteTask(id)` with confirmation)
     - Position: top-right of card, visible on hover
-  - [ ] 🟥 **1.3 Filter completed tasks from Kanban by default**
+  - [x] 🟩 **1.3 Filter completed tasks from Kanban by default**
     - File: `src/components/kanban-board.tsx`
     - Filter out tasks with `status === "done"` or `status === "archived"` from column task lists
     - Add a "Show completed" toggle checkbox above the board
     - When toggled on, done tasks appear in their project column with a muted/struck-through style
 
-- [ ] 🟥 **Phase 2: Global Keyboard Shortcuts + Quick-Add Command Bar**
-  - [ ] 🟥 **2.1 Create `useHotkeys` hook**
+- [x] 🟩 **Phase 2: Global Keyboard Shortcuts + Quick-Add Command Bar**
+  - [x] 🟩 **2.1 Create `useHotkeys` hook**
     - New file: `src/hooks/use-hotkeys.ts`
     - Listens for global keydown events, skips when user is focused on input/textarea/contenteditable
     - Supports modifier keys (`Cmd/Ctrl+K`)
     - Cleanup on unmount
-  - [ ] 🟥 **2.2 Build the Quick-Add Command Bar component**
+  - [x] 🟩 **2.2 Build the Quick-Add Command Bar component**
     - New file: `src/components/quick-add-bar.tsx`
     - Floating modal overlay (centered, like a command palette)
     - Single text input with placeholder: `Type a task... (@project, p0-p2, tomorrow, every monday)`
     - Shows parsed token chips below the input (e.g., `[Project: User Interviews]` `[Due: Mar 3]` `[Priority: High]`)
     - Submit on `Enter`, close on `Escape`
     - Calls `createTask()` server action with parsed fields
-  - [ ] 🟥 **2.3 Wire up `Cmd/Ctrl+K` to open the command bar**
-    - File: `src/components/app-shell.tsx` or `src/app/(app)/layout.tsx`
+  - [x] 🟩 **2.3 Wire up `Cmd/Ctrl+K` to open the command bar**
+    - File: `src/components/app-shell.tsx` + new `src/components/quick-add-provider.tsx`
     - Register the hotkey at the app layout level
     - Pass `projects` list to the command bar for `@project` matching
-  - [ ] 🟥 **2.4 Add `@project` autocomplete dropdown**
+  - [x] 🟩 **2.4 Add `@project` autocomplete dropdown**
     - Inside `quick-add-bar.tsx`
     - Trigger: when user types `@` followed by characters
     - Show filtered project list in a dropdown, navigable with arrow keys + Enter to select
     - On select, replace `@text` with a chip and set `projectId`
 
-- [ ] 🟥 **Phase 3: Smart Input Parsing**
-  - [ ] 🟥 **3.1 Build the input parser utility**
+- [x] 🟩 **Phase 3: Smart Input Parsing**
+  - [x] 🟩 **3.1 Build the input parser utility**
     - New file: `src/lib/task-parser.ts`
     - Pure function: `parseTaskInput(text: string, projects: Project[]) → ParsedTask`
     - Returns: `{ title: string, projectId?: string, priority?: string, dueDate?: string, recurrence?: string }`
     - Strips matched tokens from title, preserves the rest as the clean task title
-  - [ ] 🟥 **3.2 Priority parsing**
+  - [x] 🟩 **3.2 Priority parsing**
     - Detect `p0` → `high`, `p1` → `medium`, `p2` → `low` (case-insensitive)
     - Also support `p3` → `urgent` if desired, or map `p0` → `urgent` — match to existing enum
     - Decision: `p0` = urgent, `p1` = high, `p2` = medium, `p3` = low
-  - [ ] 🟥 **3.3 Date parsing**
+  - [x] 🟩 **3.3 Date parsing**
     - Detect: "today", "tomorrow", "next monday", "next tuesday", ..., "next sunday"
     - Convert to ISO date string relative to current date
     - Handle edge cases: "next monday" when today is monday → next week's monday
-  - [ ] 🟥 **3.4 Recurrence parsing**
+  - [x] 🟩 **3.4 Recurrence parsing**
     - Detect: "every monday", "every tuesday", ..., "every day", "every weekday"
     - Store as a `recurrenceRule` string (e.g., `"weekly:1"` for Monday, `"daily"` for every day)
     - Also set the initial `dueDate` to the next occurrence of that day
-  - [ ] 🟥 **3.5 Project mention parsing (`@project`)**
+  - [x] 🟩 **3.5 Project mention parsing (`@project`)**
     - Detect `@word` pattern, fuzzy match against project names
     - If exact match → auto-assign. If multiple matches → trigger autocomplete dropdown (handled in 2.4)
 
-- [ ] 🟥 **Phase 4: Recurring Tasks — Schema & Logic**
-  - [ ] 🟥 **4.1 DB migration: add recurrence fields to tasks table**
+- [x] 🟩 **Phase 4: Recurring Tasks — Schema & Logic**
+  - [x] 🟩 **4.1 DB migration: add recurrence fields to tasks table**
     - Add `recurrence_rule TEXT` — stores the recurrence pattern (e.g., `"weekly:1"`, `"daily"`)
     - Add `recurrence_source_id TEXT REFERENCES tasks(id) ON DELETE SET NULL` — links to the original task for history tracking
     - Run migration via Drizzle
-  - [ ] 🟥 **4.2 Update `CreateTaskInput` and `createTask` action**
+  - [x] 🟩 **4.2 Update `CreateTaskInput` and `createTask` action**
     - File: `src/actions/tasks.ts`
     - Add `recurrenceRule?: string` to `CreateTaskInput`
     - Persist `recurrenceRule` and optionally `recurrenceSourceId` on insert
-  - [ ] 🟥 **4.3 Implement recurrence-on-complete logic**
+  - [x] 🟩 **4.3 Implement recurrence-on-complete logic**
     - File: `src/actions/tasks.ts`
     - In `updateTask`, when `status` changes to `"done"` and task has a `recurrenceRule`:
       1. Calculate the next due date from the rule
       2. Create a new task with same title, description, project, priority, and `recurrenceRule`
       3. Set `recurrenceSourceId` to the original task's ID (or the completed task's source ID if it's already a recurrence)
     - The completed task stays as `done` (history preserved)
-  - [ ] 🟥 **4.4 Update Kanban & List views to show recurrence indicator**
+  - [x] 🟩 **4.4 Update Kanban & List views to show recurrence indicator**
     - Show a small "repeat" icon on recurring task cards
     - File: `src/components/kanban-board.tsx` and `src/components/task-list.tsx`
 

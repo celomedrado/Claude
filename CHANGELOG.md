@@ -3,17 +3,33 @@
 ## [Unreleased]
 
 ### Added
+- **Quick-add bar** (`Cmd/Ctrl+K`): NLP-powered task creation with inline parsing of priority (`p0`–`p3`), due dates (`today`, `tomorrow`, `next monday`), recurrence (`every day`, `every weekday`, `every monday`), and project assignment (`@projectName`)
+- **Global keyboard shortcuts** via `useHotkeys` hook — skips form elements, supports `Cmd/Ctrl` modifiers
+- **Per-column "Add task" button** on kanban board for quick in-column task creation
+- **Recurrence support**: completing a recurring task auto-creates the next occurrence with updated due date
+- **Recurrence DB migration** (`0002_add_recurrence_fields.sql`): `recurrence_rule` and `recurrence_source_id` columns via ALTER TABLE
+- **Instrumentation** (`instrumentation.ts`): ensures recurrence columns exist at app startup (skips edge runtime)
 - **Kanban Board** (`/tasks` → Board toggle): drag-and-drop board view with one column per project + "Unassigned" column. Drag cards between columns to reassign tasks to different projects.
 - List/Board view toggle on the All Tasks page (client-side, no new route)
 - `@dnd-kit/core` for accessible drag-and-drop interactions
+- **AI agent team framework** (`.claude/`): team-protocol, 6 agent definitions (DM/PM/ARCH/FE/BE/QA), 9 skill commands (`/kickoff`, `/call-agent`, `/handoff`, `/team-review`, `/signoff`, `/decision`, `/sync`, `/blocker`, `/risk`)
 
 ### Changed
+- **Kanban card completion**: replaced hover-only checkmark with always-visible circle radio button; empty circle for incomplete, filled green check for done
+- **Kanban task assignment**: dragging a task into a column correctly sets `projectId`
+- **Show/hide completed toggle** on kanban board with `Eye`/`EyeOff` icons
+- **Delete button** on kanban cards moved to hover-only (destructive action gated behind intent)
 - `/tasks` page now renders `TasksView` wrapper (supports both list and board views)
 - OpenAI API error handling: 401 errors now return `503` with actionable message instead of generic `500`
 - API key validation at startup logs key length for easier debugging
 - `AIConfigError` class distinguishes config issues from runtime errors in all AI routes
 
 ### Fixed
+- Stale closure in kanban drag handlers causing incorrect task references
+- All task mutations (`createTask`, `updateTask`, `deleteTask`) surface errors via toast callbacks
+- `catch` blocks use proper specificity (no bare `catch`)
+- `@project` assignment works correctly when creating tasks via quick-add
+- Edge runtime crash: `instrumentation.ts` skips edge runtime to avoid `fs` module errors
 - Task detail modal: added `role="dialog"`, `aria-modal`, `aria-labelledby`, close button `aria-label`
 - Task detail modal: Escape key closes modal, click-outside closes modal
 - Task detail modal: `handleSave`/`handleDelete` wrapped in try-catch with inline error display
