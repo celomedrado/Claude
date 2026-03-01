@@ -70,7 +70,7 @@ export function GeneratePage() {
       const doc = await generateDocument(selectedTasks, template);
       setDocument(doc);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }

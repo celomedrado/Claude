@@ -45,7 +45,7 @@ export function ExtractPage() {
       setExtracted(tasks);
       setSelected(new Set(tasks.map((_, i) => i)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(typeof err === "string" ? err : err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
