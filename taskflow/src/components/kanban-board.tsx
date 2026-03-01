@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,11 +13,11 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from "@dnd-kit/core";
-import { updateTask, deleteTask } from "@/actions/tasks";
+import { updateTask, deleteTask, createTask } from "@/actions/tasks";
 import { TaskDetail } from "./task-detail";
 import type { TaskItem } from "./task-list";
 import { cn } from "@/lib/utils";
-import { Circle, Clock, CheckCircle2, Archive, GripVertical, X, Check, Trash2, Eye, EyeOff, Repeat } from "lucide-react";
+import { Circle, Clock, CheckCircle2, Archive, GripVertical, X, Check, Trash2, Eye, EyeOff, Repeat, Plus } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Constants — reuse the same visual language as task-list.tsx        */
@@ -62,6 +62,24 @@ interface ColumnProps {
 
 function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: ColumnProps) {
   const { setNodeRef } = useDroppable({ id });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const addInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleAddTask(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const title = addInputRef.current?.value.trim();
+    if (!title) return;
+
+    try {
+      await createTask({
+        title,
+        projectId: id === UNASSIGNED_ID ? null : id,
+      });
+      setShowAddForm(false);
+    } catch {
+      onError("Failed to create task. Please try again.");
+    }
+  }
 
   return (
     <div
@@ -88,10 +106,49 @@ function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: Colu
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} onSelect={onSelectTask} onError={onError} />
         ))}
-        {tasks.length === 0 && (
+        {tasks.length === 0 && !showAddForm && (
           <p className="py-6 text-center text-xs text-gray-400">
             No tasks yet. Drag tasks here or create one to get started.
           </p>
+        )}
+      </div>
+
+      {/* Add task footer */}
+      <div className="border-t border-gray-200 p-2">
+        {showAddForm ? (
+          <form onSubmit={handleAddTask} className="space-y-1.5">
+            <input
+              ref={addInputRef}
+              type="text"
+              placeholder="Task title"
+              autoFocus
+              className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              onKeyDown={(e) => { if (e.key === "Escape") setShowAddForm(false); }}
+            />
+            <div className="flex justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+              >
+                Add
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add task
+          </button>
         )}
       </div>
     </div>

@@ -182,10 +182,15 @@ function parseProject(
   const query = match[1].toLowerCase();
   const matched = match[0].trimStart(); // the full "@word" token
 
+  // Normalize hyphens to spaces so "@User-Research" matches "User Research".
+  // selectProject() replaces spaces with hyphens for the @mention token.
+  const normalizedQuery = query.replace(/-/g, " ");
+
   // Find projects whose name contains the query (case-insensitive)
-  const candidates = projects.filter((p) =>
-    p.name.toLowerCase().includes(query)
-  );
+  const candidates = projects.filter((p) => {
+    const normalizedName = p.name.toLowerCase().replace(/-/g, " ");
+    return normalizedName.includes(normalizedQuery);
+  });
 
   if (candidates.length === 1) {
     return { projectId: candidates[0].id, matched };
