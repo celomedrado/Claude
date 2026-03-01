@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, memo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -145,7 +145,7 @@ function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: Colu
 /*  TaskCard — a draggable card within a column                       */
 /* ------------------------------------------------------------------ */
 
-function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSelect: (t: TaskItem) => void; overlay?: boolean; onError?: (msg: string) => void }) {
+const TaskCard = memo(function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSelect: (t: TaskItem) => void; overlay?: boolean; onError?: (msg: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
     data: { task },
@@ -282,7 +282,7 @@ function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSele
       </div>
     </div>
   );
-}
+});
 
 /* ------------------------------------------------------------------ */
 /*  KanbanBoard — main board component                                */
@@ -345,9 +345,10 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
 
     const targetColumnId = String(over.id);
     const newProjectId = targetColumnId === UNASSIGNED_ID ? null : targetColumnId;
+    const currentProjectId = task.projectId ?? null;
 
     // Only update if the project actually changed
-    if (task.projectId === newProjectId) return;
+    if (currentProjectId === newProjectId) return;
 
     try {
       await updateTask(task.id, { projectId: newProjectId });

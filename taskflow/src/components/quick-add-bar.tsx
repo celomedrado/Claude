@@ -34,6 +34,7 @@ const PRIORITY_LABELS: Record<string, { label: string; className: string }> = {
 export function QuickAddBar({ projects, open, onClose }: QuickAddBarProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [autocompleteIndex, setAutocompleteIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +120,7 @@ export function QuickAddBar({ projects, open, onClose }: QuickAddBarProps) {
     setLoading(true);
 
     try {
+      setError(null);
       await createTask({
         title: parsed.title || input.trim(),
         projectId: parsed.projectId || null,
@@ -129,7 +131,7 @@ export function QuickAddBar({ projects, open, onClose }: QuickAddBarProps) {
       setInput("");
       onClose();
     } catch {
-      // Let revalidation handle error display
+      setError("Failed to create task. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -229,6 +231,13 @@ export function QuickAddBar({ projects, open, onClose }: QuickAddBarProps) {
                 className="bg-purple-50 text-purple-700"
               />
             )}
+          </div>
+        )}
+
+        {/* Error message */}
+        {error && (
+          <div className="px-4 py-2 text-xs text-red-600 bg-red-50 border-t border-red-100">
+            {error}
           </div>
         )}
 

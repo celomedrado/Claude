@@ -80,8 +80,12 @@ export function TaskList({ tasks, projects, currentProjectId }: TaskListProps) {
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
 
-  function cycleStatus(task: TaskItem) {
-    updateTask(task.id, { status: NEXT_STATUS[task.status] });
+  async function cycleStatus(task: TaskItem) {
+    try {
+      await updateTask(task.id, { status: NEXT_STATUS[task.status] });
+    } catch {
+      alert("Failed to update task status. Please try again.");
+    }
   }
 
   function formatDate(date: Date | null) {
