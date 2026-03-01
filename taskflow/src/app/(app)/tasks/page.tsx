@@ -28,7 +28,6 @@ export default async function TasksPage() {
       projectId: tasks.projectId,
       aiGenerated: tasks.aiGenerated,
       createdAt: tasks.createdAt,
-      recurrenceRule: tasks.recurrenceRule,
     })
     .from(tasks)
     .where(eq(tasks.userId, session.user.id));

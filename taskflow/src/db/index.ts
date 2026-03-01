@@ -20,3 +20,7 @@ for (const col of ["recurrence_rule TEXT", "recurrence_source_id TEXT"]) {
 }
 
 export const db = drizzle(sqlite, { schema });
+
+/** Raw SQLite handle — used for recurrence queries that reference
+ *  columns not in the Drizzle schema. */
+export { sqlite };

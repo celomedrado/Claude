@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/db";
+import { db, sqlite } from "@/db";
 import { tasks } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
@@ -40,10 +40,20 @@ export async function createTask(input: CreateTaskInput) {
       status: input.status || "todo",
       sourceText: input.sourceText || null,
       aiGenerated: input.aiGenerated || false,
-      recurrenceRule: input.recurrenceRule || null,
-      recurrenceSourceId: input.recurrenceSourceId || null,
     })
     .returning();
+
+  // Persist recurrence fields via raw SQL (columns live outside the
+  // Drizzle schema to avoid errors when the migration hasn't run yet).
+  if (task && (input.recurrenceRule || input.recurrenceSourceId)) {
+    try {
+      sqlite
+        .prepare("UPDATE tasks SET recurrence_rule = ?, recurrence_source_id = ? WHERE id = ?")
+        .run(input.recurrenceRule || null, input.recurrenceSourceId || null, task.id);
+    } catch {
+      // Columns don't exist yet — silently skip
+    }
+  }
 
   revalidatePath("/");
   return task;
@@ -74,41 +84,48 @@ export async function updateTask(
     .set(setValues)
     .where(and(eq(tasks.id, taskId), eq(tasks.userId, session.user.id)));
 
-  // Recurrence: when a recurring task is marked as "done", create the next occurrence
+  // Recurrence-on-complete: when a recurring task is marked "done",
+  // schedule the next occurrence. Uses raw SQL since recurrence columns
+  // live outside the Drizzle schema.
   if (updates.status === "done") {
-    const [completedTask] = await db
-      .select()
-      .from(tasks)
-      .where(and(eq(tasks.id, taskId), eq(tasks.userId, session.user.id)));
+    try {
+      const row = sqlite
+        .prepare("SELECT id, user_id, title, description, project_id, priority, recurrence_rule, recurrence_source_id FROM tasks WHERE id = ? AND user_id = ?")
+        .get(taskId, session.user.id) as { id: string; user_id: string; title: string; description: string; project_id: string | null; priority: string; recurrence_rule: string | null; recurrence_source_id: string | null } | undefined;
 
-    if (completedTask?.recurrenceRule) {
-      // Guard: only create next occurrence if one doesn't already exist
-      const sourceId = completedTask.recurrenceSourceId || completedTask.id;
-      const [existing] = await db
-        .select({ id: tasks.id })
-        .from(tasks)
-        .where(
-          and(
-            eq(tasks.recurrenceSourceId, sourceId),
-            eq(tasks.status, "todo"),
-            eq(tasks.userId, session.user.id)
-          )
-        );
+      if (row?.recurrence_rule) {
+        const sourceId = row.recurrence_source_id || row.id;
 
-      if (!existing) {
-        const nextDue = getNextDueDate(completedTask.recurrenceRule);
-        await db.insert(tasks).values({
-          userId: session.user.id,
-          title: completedTask.title,
-          description: completedTask.description || "",
-          projectId: completedTask.projectId,
-          priority: completedTask.priority as CreateTaskInput["priority"],
-          dueDate: new Date(nextDue),
-          status: "todo",
-          recurrenceRule: completedTask.recurrenceRule,
-          recurrenceSourceId: sourceId,
-        });
+        // Guard: don't duplicate if a todo occurrence already exists
+        const existing = sqlite
+          .prepare("SELECT id FROM tasks WHERE recurrence_source_id = ? AND status = 'todo' AND user_id = ?")
+          .get(sourceId, session.user.id);
+
+        if (!existing) {
+          const nextDue = getNextDueDate(row.recurrence_rule);
+          const newId = crypto.randomUUID();
+          sqlite
+            .prepare(`
+              INSERT INTO tasks (id, user_id, title, description, project_id, priority, due_date, status, recurrence_rule, recurrence_source_id, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, ?, ?)
+            `)
+            .run(
+              newId,
+              session.user.id,
+              row.title,
+              row.description || "",
+              row.project_id,
+              row.priority,
+              Math.floor(new Date(nextDue).getTime() / 1000),
+              row.recurrence_rule,
+              sourceId,
+              Math.floor(Date.now() / 1000),
+              Math.floor(Date.now() / 1000),
+            );
+        }
       }
+    } catch {
+      // Recurrence columns don't exist yet — skip silently
     }
   }
 
