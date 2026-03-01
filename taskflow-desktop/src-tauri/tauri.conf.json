@@ -44,18 +44,5 @@
       "minimumSystemVersion": "13.0"
     }
   },
-  "plugins": {
-    "notification": {
-      "enabled": true
-    },
-    "global-shortcut": {
-      "enabled": true
-    },
-    "autostart": {
-      "enabled": true
-    },
-    "window-state": {
-      "enabled": true
-    }
-  }
+  "plugins": {}
 }
