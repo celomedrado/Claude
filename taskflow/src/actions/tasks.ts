@@ -50,8 +50,11 @@ export async function createTask(input: CreateTaskInput) {
       sqlite
         .prepare("UPDATE tasks SET recurrence_rule = ?, recurrence_source_id = ? WHERE id = ?")
         .run(input.recurrenceRule || null, input.recurrenceSourceId || null, task.id);
-    } catch {
-      // Columns don't exist yet — silently skip
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("no such column")) {
+        throw err;
+      }
     }
   }
 
@@ -124,8 +127,13 @@ export async function updateTask(
             );
         }
       }
-    } catch {
-      // Recurrence columns don't exist yet — skip silently
+    } catch (err: unknown) {
+      // Only ignore "no such column" errors (recurrence columns not yet migrated).
+      // Re-throw anything else so real bugs surface.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("no such column")) {
+        throw err;
+      }
     }
   }
 

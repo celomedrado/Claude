@@ -56,10 +56,11 @@ interface ColumnProps {
   color: string;
   tasks: TaskItem[];
   onSelectTask: (task: TaskItem) => void;
+  onError: (msg: string) => void;
   isOver: boolean;
 }
 
-function Column({ id, label, color, tasks, onSelectTask, isOver }: ColumnProps) {
+function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: ColumnProps) {
   const { setNodeRef } = useDroppable({ id });
 
   return (
@@ -85,7 +86,7 @@ function Column({ id, label, color, tasks, onSelectTask, isOver }: ColumnProps) 
       {/* Cards */}
       <div className="flex-1 space-y-2 overflow-y-auto p-2 max-h-[calc(100vh-14rem)]">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onSelect={onSelectTask} />
+          <TaskCard key={task.id} task={task} onSelect={onSelectTask} onError={onError} />
         ))}
         {tasks.length === 0 && (
           <p className="py-6 text-center text-xs text-gray-400">
@@ -101,7 +102,7 @@ function Column({ id, label, color, tasks, onSelectTask, isOver }: ColumnProps) 
 /*  TaskCard — a draggable card within a column                       */
 /* ------------------------------------------------------------------ */
 
-function TaskCard({ task, onSelect, overlay }: { task: TaskItem; onSelect: (t: TaskItem) => void; overlay?: boolean }) {
+function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSelect: (t: TaskItem) => void; overlay?: boolean; onError?: (msg: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
     data: { task },
@@ -119,7 +120,9 @@ function TaskCard({ task, onSelect, overlay }: { task: TaskItem; onSelect: (t: T
     e.stopPropagation();
     try {
       await updateTask(task.id, { status: "done" });
-    } catch { /* error handled at board level via revalidation */ }
+    } catch {
+      onError?.("Failed to complete task. Please try again.");
+    }
   }
 
   async function handleDelete(e: React.MouseEvent) {
@@ -127,7 +130,9 @@ function TaskCard({ task, onSelect, overlay }: { task: TaskItem; onSelect: (t: T
     if (!confirm("Delete this task?")) return;
     try {
       await deleteTask(task.id);
-    } catch { /* error handled at board level via revalidation */ }
+    } catch {
+      onError?.("Failed to delete task. Please try again.");
+    }
   }
 
   return (
@@ -354,6 +359,7 @@ export function KanbanBoard({ tasks, projects }: KanbanBoardProps) {
             color={col.color}
             tasks={col.tasks}
             onSelectTask={setSelectedTask}
+            onError={setError}
             isOver={overColumnId === col.id}
           />
         ))}

@@ -169,7 +169,7 @@ function parseRecurrence(
 /*  Project mention parsing                                            */
 /* ------------------------------------------------------------------ */
 
-/** Matches @word (supports multi-word via quotes: @"user interviews") */
+/** Matches @word — single contiguous token (no spaces) */
 const PROJECT_RE = /(?:^|\s)@(\S+)/i;
 
 function parseProject(

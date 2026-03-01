@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { createTask } from "@/actions/tasks";
 import { parseTaskInput, type ProjectRef, type ParsedTask } from "@/lib/task-parser";
 import { cn } from "@/lib/utils";
@@ -70,45 +70,42 @@ export function QuickAddBar({ projects, open, onClose }: QuickAddBarProps) {
   }, [open]);
 
   // Close on Escape, navigate autocomplete with arrow keys
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+
+    // Autocomplete navigation
+    if (atMention) {
+      if (e.key === "ArrowDown") {
         e.preventDefault();
-        onClose();
+        setAutocompleteIndex((i) =>
+          i < atMention.candidates.length - 1 ? i + 1 : 0
+        );
         return;
       }
-
-      // Autocomplete navigation
-      if (atMention) {
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          setAutocompleteIndex((i) =>
-            i < atMention.candidates.length - 1 ? i + 1 : 0
-          );
-          return;
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          setAutocompleteIndex((i) =>
-            i > 0 ? i - 1 : atMention.candidates.length - 1
-          );
-          return;
-        }
-        if (e.key === "Tab" || (e.key === "Enter" && atMention.candidates.length > 0)) {
-          e.preventDefault();
-          selectProject(atMention.candidates[autocompleteIndex]);
-          return;
-        }
-      }
-
-      // Submit on Enter (when no autocomplete is showing)
-      if (e.key === "Enter" && !atMention) {
+      if (e.key === "ArrowUp") {
         e.preventDefault();
-        handleSubmit();
+        setAutocompleteIndex((i) =>
+          i > 0 ? i - 1 : atMention.candidates.length - 1
+        );
+        return;
       }
-    },
-    [atMention, autocompleteIndex, onClose]
-  );
+      if (e.key === "Tab" || (e.key === "Enter" && atMention.candidates.length > 0)) {
+        e.preventDefault();
+        selectProject(atMention.candidates[autocompleteIndex]);
+        return;
+      }
+    }
+
+    // Submit on Enter (when no autocomplete is showing)
+    if (e.key === "Enter" && !atMention) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }
 
   // Replace the @mention text with the selected project name
   function selectProject(project: ProjectRef) {
