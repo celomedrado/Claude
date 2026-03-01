@@ -1,6 +1,33 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const apiKey = process.env.OPENAI_API_KEY;
+if (!apiKey) {
+  console.warn("⚠ OPENAI_API_KEY is not set. AI features will fail.");
+} else {
+  console.log(`✓ OPENAI_API_KEY loaded (starts with ${apiKey.substring(0, 12)}..., length: ${apiKey.length})`);
+}
+
+const openai = new OpenAI({ apiKey });
+
+export class AIConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AIConfigError";
+  }
+}
+
+function assertApiKey(): void {
+  if (!apiKey) {
+    throw new AIConfigError(
+      "OPENAI_API_KEY is not configured. Add it to your .env.local file."
+    );
+  }
+  if (apiKey.length < 20) {
+    throw new AIConfigError(
+      "OPENAI_API_KEY appears to be truncated or invalid (too short). Check your .env.local file."
+    );
+  }
+}
 
 export interface ExtractedTask {
   title: string;
@@ -12,16 +39,25 @@ export interface ExtractedTask {
 
 export async function extractTasks(
   rawText: string,
-  existingProjects: string[]
+  existingProjects: string[],
+  workSummary?: string | null
 ): Promise<ExtractedTask[]> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.2,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: `You are a task extraction assistant for project managers. Extract actionable tasks from the provided text (meeting notes, Slack messages, etc.).
+  assertApiKey();
+
+  // Build context block from the rolling work summary (if available)
+  const contextBlock = workSummary
+    ? `\n\nUser's ongoing work context (use this to make better project/priority suggestions):\n${workSummary}`
+    : "";
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a task extraction assistant for project managers. Extract actionable tasks from the provided text (meeting notes, Slack messages, etc.).
 
 For each task, provide:
 - title: concise action item (start with a verb)
@@ -30,24 +66,68 @@ For each task, provide:
 - priority: low, medium, high, or urgent (infer from context, urgency words, deadlines)
 - dueDate: ISO date string if a deadline is mentioned, null otherwise
 
-Existing projects: ${existingProjects.length > 0 ? existingProjects.join(", ") : "none yet"}
+Existing projects: ${existingProjects.length > 0 ? existingProjects.join(", ") : "none yet"}${contextBlock}
 
 Return JSON: { "tasks": [...] }
 If no actionable tasks are found, return { "tasks": [] }.`,
+        },
+        { role: "user", content: rawText },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return [];
+
+    try {
+      const parsed = JSON.parse(content);
+      return parsed.tasks || [];
+    } catch {
+      return [];
+    }
+  } catch (err: unknown) {
+    if (err instanceof OpenAI.APIError && err.status === 401) {
+      throw new AIConfigError(
+        "OpenAI rejected the API key (401 Unauthorized). Generate a new key at https://platform.openai.com/api-keys and update .env.local."
+      );
+    }
+    throw err;
+  }
+}
+
+/**
+ * Updates the rolling work summary by merging the existing summary with
+ * new information from the latest transcript. Keeps the summary compact
+ * (~500 tokens) so it can be cheaply included in future extraction prompts.
+ */
+export async function updateWorkSummary(
+  currentSummary: string | null,
+  newTranscript: string
+): Promise<string> {
+  assertApiKey();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.1,
+    messages: [
+      {
+        role: "system",
+        content: `You maintain a concise rolling summary of a user's work context. This summary is used to help an AI extract better, more personalized tasks from future meeting notes.
+
+Rules:
+- Keep the summary under 500 words
+- Focus on: active projects, recurring themes, key people/teams, ongoing priorities, recent decisions
+- Drop outdated information when new info supersedes it
+- Write in bullet-point style, grouped by project/theme
+- If there is no existing summary, create one from scratch`,
       },
-      { role: "user", content: rawText },
+      {
+        role: "user",
+        content: `${currentSummary ? `Existing summary:\n${currentSummary}\n\n` : ""}New transcript:\n${newTranscript}\n\nProduce the updated summary:`,
+      },
     ],
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) return [];
-
-  try {
-    const parsed = JSON.parse(content);
-    return parsed.tasks || [];
-  } catch {
-    return [];
-  }
+  return response.choices[0]?.message?.content || currentSummary || "";
 }
 
 export async function categorizeTask(
@@ -55,6 +135,7 @@ export async function categorizeTask(
   description: string,
   existingProjects: string[]
 ): Promise<{ project: string; priority: "low" | "medium" | "high" | "urgent" }> {
+  assertApiKey();
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.1,
@@ -111,6 +192,7 @@ export async function generateDocument(
   tasks: { title: string; description: string; status: string; priority: string; dueDate: string | null; projectName: string | null }[],
   template: DocTemplate
 ): Promise<string> {
+  assertApiKey();
   const taskList = tasks
     .map(
       (t) =>

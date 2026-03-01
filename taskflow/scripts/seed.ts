@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { users, projects, tasks } from "../src/db/schema";
+import { eq } from "drizzle-orm";
+import { users, projects, tasks, meetings } from "../src/db/schema";
 import bcrypt from "bcryptjs";
 import path from "path";
 import fs from "fs";
@@ -12,16 +13,17 @@ const sqlite = new Database(path.join(dataDir, "taskflow.db"));
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 
-// Create tables if they don't exist
-const migrationPath = path.join(process.cwd(), "drizzle", "0000_outstanding_vin_gonzales.sql");
-if (fs.existsSync(migrationPath)) {
-  const migration = fs.readFileSync(migrationPath, "utf-8");
+// Apply all migrations in order
+const drizzleDir = path.join(process.cwd(), "drizzle");
+const migrationFiles = fs.readdirSync(drizzleDir).filter((f) => f.endsWith(".sql")).sort();
+for (const file of migrationFiles) {
+  const migration = fs.readFileSync(path.join(drizzleDir, file), "utf-8");
   const statements = migration.split("--> statement-breakpoint").map((s) => s.trim()).filter(Boolean);
   for (const stmt of statements) {
     try {
       sqlite.exec(stmt);
     } catch {
-      // Table already exists, skip
+      // Table/column already exists, skip
     }
   }
 }
@@ -177,6 +179,53 @@ async function seed() {
     .returning();
 
   console.log(`Created ${createdTasks.length} tasks`);
+
+  // Create sample meetings (stored transcripts)
+  const meetingData = [
+    {
+      rawText: "Sprint standup — Sarah has the dashboard mockups almost done, targeting Friday. Mike is blocked on the API integration waiting for the new auth tokens. We need to send beta invites ASAP, at least 200 from the waitlist. Landing page copy is in review with marketing.",
+      taskCount: 3,
+      createdAt: new Date(now.getTime() - 2 * dayMs),
+    },
+    {
+      rawText: "Q1 planning sync — OKRs are finalized. Top priorities: product launch by end of month, NPS improvement target of +10 points, infrastructure reliability target 99.9%. Budget review scheduled for Thursday, need slides ready. Roadmap prioritization happening next week.",
+      taskCount: 4,
+      createdAt: new Date(now.getTime() - 5 * dayMs),
+    },
+  ];
+
+  await db
+    .insert(meetings)
+    .values(meetingData.map((m) => ({ ...m, userId: user.id })));
+
+  console.log(`Created ${meetingData.length} sample meetings`);
+
+  // Set starter work summary on the user
+  await db.update(users).set({
+    workSummary: `**Product Launch**
+- Landing page copy in final review with marketing
+- Beta invites queued for 200 waitlist users (urgent)
+- Dashboard mockups expected from Sarah by Friday
+- Analytics tracking setup pending
+
+**Q1 Planning**
+- OKRs finalized: launch by EOM, NPS +10, 99.9% uptime
+- Budget review Thursday — slides in progress
+- Roadmap prioritization scheduled for next week
+
+**Customer Feedback**
+- NPS survey results pending analysis
+- 5 churned user interviews being scheduled
+- Feature request aggregation needed
+
+**Infrastructure**
+- Monitoring alerts configured
+- Database upgrade planned (zero downtime)
+
+**Key People**: Sarah (design), Mike (engineering, blocked on auth tokens)`,
+  }).where(eq(users.id, user.id));
+
+  console.log("Set starter work summary");
   console.log("\nSeed complete! Login with:");
   console.log("  Email: demo@taskflow.app");
   console.log("  Password: demo1234");
