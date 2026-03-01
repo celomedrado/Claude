@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { check } from "@tauri-apps/plugin-updater";
+import { useState, useEffect, useRef } from "react";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { Download, X } from "lucide-react";
 
@@ -7,12 +7,15 @@ export function UpdateChecker() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [version, setVersion] = useState("");
   const [installing, setInstalling] = useState(false);
+  const [error, setError] = useState("");
   const [dismissed, setDismissed] = useState(false);
+  const updateRef = useRef<Update | null>(null);
 
   useEffect(() => {
     check()
       .then((update) => {
         if (update) {
+          updateRef.current = update;
           setUpdateAvailable(true);
           setVersion(update.version);
         }
@@ -26,14 +29,16 @@ export function UpdateChecker() {
 
   async function handleUpdate() {
     setInstalling(true);
+    setError("");
     try {
-      const update = await check();
+      const update = updateRef.current;
       if (update) {
         await update.downloadAndInstall();
         await relaunch();
       }
     } catch {
       setInstalling(false);
+      setError("Update failed — try again");
     }
   }
 
@@ -43,6 +48,7 @@ export function UpdateChecker() {
       <span className="text-sm text-indigo-900">
         TaskFlow {version} is available
       </span>
+      {error && <span className="text-xs text-red-600">{error}</span>}
       <button
         onClick={handleUpdate}
         disabled={installing}
@@ -50,7 +56,7 @@ export function UpdateChecker() {
       >
         {installing ? "Installing..." : "Update now"}
       </button>
-      <button onClick={() => setDismissed(true)} className="text-indigo-400 hover:text-indigo-600">
+      <button onClick={() => setDismissed(true)} aria-label="Dismiss update notification" className="text-indigo-400 hover:text-indigo-600">
         <X className="h-3.5 w-3.5" />
       </button>
     </div>

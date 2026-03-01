@@ -42,6 +42,14 @@ jobs:
         working-directory: taskflow-desktop
         run: npm ci
 
+      - name: Verify updater pubkey is set
+        run: |
+          PUBKEY=$(python3 -c "import json; print(json.load(open('taskflow-desktop/src-tauri/tauri.conf.json'))['plugins']['updater']['pubkey'])")
+          if [ -z "$PUBKEY" ]; then
+            echo "::error::Updater pubkey is empty in tauri.conf.json — auto-updates will not work. Generate keys with: npx @tauri-apps/cli signer generate"
+            exit 1
+          fi
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
