@@ -5,6 +5,33 @@ argument-hint: "<feature name> | <goal> | priority=<P0/P1/P2> | target=<YYYY-MM-
 disable-model-invocation: true
 ---
 
+Before doing anything:
+1) Read `.claude/workflow-mode.json` (default to "solo" if missing).
+2) Branch behavior by mode:
+
+MODE = solo:
+- Follow the exact workflow from `.claude/CLAUDE.md`:
+  - Ask clarifying questions until confident.
+  - Produce a Cursor discovery prompt (with file paths, functions, DB objects).
+  - Propose phases (usually 1–3) and create Cursor prompts for each phase.
+- Write outputs into the Feature Thread under section: "## Solo (CTO) Plan"
+
+MODE = agents:
+- Ensure Agent Teams are enabled (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1). If not enabled, explain how to enable in `.claude/settings.json`.
+- If enabled, spawn teammates (PM/ARCH/FE/BE/QA) and require plan approval before changes.
+- Create/update the Feature Thread and collect artifacts (brief, ADR decision, contract, test plan, release plan) per `.claude/team-protocol.md`.
+- DM synthesizes a Cursor discovery prompt + phased execution prompts informed by those artifacts.
+- Write outputs under: "## Agents Plan"
+
+MODE = both:
+- Run agents mode first (Agents Plan).
+- Then run solo mode (Solo Plan).
+- Add "## Comparison" with:
+  - Key differences in scope/risks/architecture/testing
+  - Recommendation + why
+
+---
+
 You are running the team kickoff workflow.
 
 1) Create or update `.claude/feature-threads/<feature-slug>.md`.
