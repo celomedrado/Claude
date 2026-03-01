@@ -17,25 +17,11 @@ import { updateTask, deleteTask, createTask } from "@/actions/tasks";
 import { TaskDetail } from "./task-detail";
 import type { TaskItem } from "./task-list";
 import { cn } from "@/lib/utils";
-import { Circle, Clock, CheckCircle2, Archive, GripVertical, X, Check, Trash2, Eye, EyeOff, Repeat, Plus } from "lucide-react";
+import { Circle, CheckCircle2, GripVertical, X, Trash2, Eye, EyeOff, Repeat, Plus } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
-/*  Constants — reuse the same visual language as task-list.tsx        */
+/*  Constants                                                          */
 /* ------------------------------------------------------------------ */
-
-const STATUS_ICONS = {
-  todo: Circle,
-  in_progress: Clock,
-  done: CheckCircle2,
-  archived: Archive,
-};
-
-const STATUS_COLORS = {
-  todo: "text-gray-400",
-  in_progress: "text-yellow-500",
-  done: "text-green-500",
-  archived: "text-gray-300",
-};
 
 const PRIORITY_BADGES = {
   low: "bg-gray-100 text-gray-600",
@@ -165,8 +151,6 @@ function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSele
     data: { task },
   });
 
-  const StatusIcon = STATUS_ICONS[task.status];
-
   const isOverdue =
     task.dueDate &&
     task.status !== "done" &&
@@ -202,30 +186,8 @@ function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSele
         !overlay && "hover:shadow-md"
       )}
     >
-      {/* Action buttons — visible on hover, top-right corner */}
-      {!overlay && task.status !== "done" && (
-        <div className="absolute top-1.5 right-1.5 hidden gap-0.5 group-hover:flex">
-          <button
-            onClick={handleComplete}
-            className="rounded p-1 text-gray-400 hover:bg-green-50 hover:text-green-600"
-            aria-label="Mark as done"
-            title="Mark as done"
-          >
-            <Check className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
-            aria-label="Delete task"
-            title="Delete task"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* Show delete only for already-completed tasks */}
-      {!overlay && task.status === "done" && (
+      {/* Delete button — visible on hover, top-right corner */}
+      {!overlay && (
         <div className="absolute top-1.5 right-1.5 hidden gap-0.5 group-hover:flex">
           <button
             onClick={handleDelete}
@@ -239,6 +201,27 @@ function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSele
       )}
 
       <div className="flex items-start gap-2">
+        {/* Complete radio button — always visible */}
+        {!overlay && (
+          <button
+            onClick={handleComplete}
+            className={cn(
+              "mt-0.5 shrink-0 rounded-full transition-colors",
+              task.status === "done"
+                ? "text-green-500"
+                : "text-gray-300 hover:text-green-400"
+            )}
+            aria-label={task.status === "done" ? "Completed" : "Mark as done"}
+            title={task.status === "done" ? "Completed" : "Mark as done"}
+          >
+            {task.status === "done" ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <Circle className="h-4 w-4" />
+            )}
+          </button>
+        )}
+
         {/* Drag handle */}
         <button
           {...listeners}
@@ -252,7 +235,6 @@ function TaskCard({ task, onSelect, overlay, onError }: { task: TaskItem; onSele
         {/* Card body — click to open detail */}
         <button onClick={() => onSelect(task)} className="flex-1 text-left min-w-0">
           <div className="flex items-center gap-1.5">
-            <StatusIcon className={cn("h-3.5 w-3.5 shrink-0", STATUS_COLORS[task.status])} />
             <p
               className={cn(
                 "text-sm font-medium truncate",
