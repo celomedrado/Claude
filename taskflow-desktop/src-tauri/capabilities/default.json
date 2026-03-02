@@ -1,0 +1,17 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for TaskFlow desktop",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered",
+    "notification:default",
+    "dialog:default",
+    "autostart:default",
+    "window-state:default",
+    "process:default",
+    "updater:default"
+  ]
+}

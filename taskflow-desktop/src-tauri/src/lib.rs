@@ -120,13 +120,15 @@ pub fn run() {
 
             // Register global shortcut (Cmd+Shift+T)
             {
-                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
                 let app_handle = app.handle().clone();
-                app.global_shortcut().on_shortcut("CmdOrCtrl+Shift+T", move |_app, _shortcut, _event| {
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                        let _ = window.emit("global-shortcut-triggered", "quick-add");
+                app.global_shortcut().on_shortcut("CmdOrCtrl+Shift+T", move |_app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("global-shortcut-triggered", "quick-add");
+                        }
                     }
                 })?;
             }
