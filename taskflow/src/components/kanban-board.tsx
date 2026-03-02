@@ -375,7 +375,7 @@ const TaskCardContent = memo(function TaskCardContent({
           <div className="flex items-center gap-1.5">
             <p
               className={cn(
-                "text-sm font-medium truncate",
+                "text-sm font-medium break-words",
                 task.status === "done" && "line-through text-gray-400"
               )}
             >
