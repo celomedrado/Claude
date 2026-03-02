@@ -168,7 +168,7 @@ export function TaskList({ tasks, projects, currentProjectId }: TaskListProps) {
               >
                 <p
                   className={cn(
-                    "text-sm font-medium truncate",
+                    "text-sm truncate",
                     task.status === "done" && "line-through text-gray-400"
                   )}
                 >

@@ -131,7 +131,7 @@ export function TaskList({ tasks, projects, currentProjectId }: TaskListProps) {
                 <StatusIcon className="h-5 w-5" />
               </button>
               <button onClick={() => setSelectedTask(task)} className="flex-1 text-left min-w-0">
-                <p className={cn("text-sm font-medium break-words", task.status === "done" && "line-through text-gray-400")}>{task.title}</p>
+                <p className={cn("text-sm break-words", task.status === "done" && "line-through text-gray-400")}>{task.title}</p>
                 <div className="flex items-center gap-2 mt-0.5">
                   {task.projectName && (
                     <span className="flex items-center gap-1 text-xs text-gray-400">
