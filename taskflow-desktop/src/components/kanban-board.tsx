@@ -291,7 +291,7 @@ const TaskCardContent = memo(function TaskCardContent({
         </button>
         <button onClick={() => onSelect(task)} className="flex-1 text-left min-w-0">
           <div className="flex items-center gap-1.5">
-            <p className={cn("text-sm font-medium truncate", task.status === "done" && "line-through text-gray-400")}>{task.title}</p>
+            <p className={cn("text-sm font-medium break-words", task.status === "done" && "line-through text-gray-400")}>{task.title}</p>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", PRIORITY_BADGES[task.priority])}>{task.priority}</span>
