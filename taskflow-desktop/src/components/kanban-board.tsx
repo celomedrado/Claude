@@ -1,8 +1,10 @@
 /**
  * Kanban board with drag-and-drop — adapted for Tauri IPC.
  *
- * Changes: imports from @/lib/api, uses emitDataChanged for refresh,
- * dueDate is epoch (number) not Date.
+ * Supports:
+ * - Dragging task cards within and between columns (vertical sort)
+ * - Dragging project columns to reorder them (horizontal sort)
+ * - "Unassigned" column is always last and not draggable
  */
 
 import { useState, useCallback, useRef, memo, useMemo } from "react";
@@ -22,17 +24,18 @@ import {
 import {
   SortableContext,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
   useSortable,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
-import { updateTask, deleteTask, createTask } from "@/lib/api";
+import { updateTask, deleteTask, createTask, updateProject } from "@/lib/api";
 import { emitDataChanged } from "./app-shell";
 import { TaskDetail } from "./task-detail";
 import { cn } from "@/lib/utils";
-import { Circle, CheckCircle2, GripVertical, X, Trash2, Eye, EyeOff, Repeat, Plus } from "lucide-react";
-import type { TaskItem } from "@/lib/types";
+import { Circle, CheckCircle2, GripVertical, GripHorizontal, X, Trash2, Eye, EyeOff, Repeat, Plus } from "lucide-react";
+import type { TaskItem, Project } from "@/lib/types";
 
 const PRIORITY_BADGES = {
   low: "bg-gray-100 text-gray-600",
@@ -42,6 +45,7 @@ const PRIORITY_BADGES = {
 };
 
 const UNASSIGNED_ID = "__unassigned__";
+const COLUMN_PREFIX = "column:";
 
 function computeSortOrder(prev: number | null, next: number | null): number {
   if (prev != null && next != null) return (prev + next) / 2;
@@ -52,6 +56,18 @@ function computeSortOrder(prev: number | null, next: number | null): number {
 
 function getColumnId(task: TaskItem): string {
   return task.projectId || UNASSIGNED_ID;
+}
+
+function isColumnId(id: string): boolean {
+  return id.startsWith(COLUMN_PREFIX);
+}
+
+function toColumnSortableId(projectId: string): string {
+  return COLUMN_PREFIX + projectId;
+}
+
+function fromColumnSortableId(sortableId: string): string {
+  return sortableId.slice(COLUMN_PREFIX.length);
 }
 
 /* ------------------------------------------------------------------ */
@@ -66,9 +82,11 @@ interface ColumnProps {
   onSelectTask: (task: TaskItem) => void;
   onError: (msg: string) => void;
   isOver: boolean;
+  columnDragListeners?: SyntheticListenerMap;
+  columnDragAttributes?: React.HTMLAttributes<HTMLElement> & { role?: string; tabIndex?: number };
 }
 
-function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: ColumnProps) {
+function Column({ id, label, color, tasks, onSelectTask, onError, isOver, columnDragListeners, columnDragAttributes }: ColumnProps) {
   const { setNodeRef } = useDroppable({ id });
   const [showAddForm, setShowAddForm] = useState(false);
   const addInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +123,16 @@ function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: Colu
       )}
     >
       <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2.5">
+        {columnDragListeners && (
+          <button
+            {...columnDragListeners}
+            {...columnDragAttributes}
+            className="shrink-0 cursor-grab text-gray-300 hover:text-gray-500 active:cursor-grabbing"
+            aria-label="Drag to reorder column"
+          >
+            <GripHorizontal className="h-3.5 w-3.5" />
+          </button>
+        )}
         <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
         <h3 className="text-sm font-semibold text-gray-700 truncate">{label}</h3>
         <span className="ml-auto shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">{tasks.length}</span>
@@ -151,13 +179,44 @@ function Column({ id, label, color, tasks, onSelectTask, onError, isOver }: Colu
 }
 
 /* ------------------------------------------------------------------ */
+/*  SortableColumn — wraps Column for horizontal column reorder        */
+/* ------------------------------------------------------------------ */
+
+function SortableColumn(props: Omit<ColumnProps, "columnDragListeners" | "columnDragAttributes"> & { sortableId: string }) {
+  const { sortableId, ...columnProps } = props;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: sortableId,
+    data: { type: "column", projectId: fromColumnSortableId(sortableId) },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Column {...columnProps} columnDragListeners={listeners} columnDragAttributes={attributes} />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  SortableTaskCard                                                   */
 /* ------------------------------------------------------------------ */
 
 const SortableTaskCard = memo(function SortableTaskCard({ task, onSelect, onError }: { task: TaskItem; onSelect: (t: TaskItem) => void; onError?: (msg: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
-    data: { task, columnId: getColumnId(task) },
+    data: { type: "task", task, columnId: getColumnId(task) },
   });
 
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -256,21 +315,30 @@ const TaskCardContent = memo(function TaskCardContent({
 
 interface KanbanBoardProps {
   tasks: TaskItem[];
-  projects: { id: string; name: string; color: string }[];
+  projects: Pick<Project, "id" | "name" | "color" | "displayOrder">[];
 }
 
-export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
+export function KanbanBoard({ tasks: propTasks, projects: propProjects }: KanbanBoardProps) {
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
+  const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+
+  // Local state for optimistic updates
   const [localTasks, setLocalTasks] = useState<TaskItem[]>(propTasks);
   const [prevPropTasks, setPrevPropTasks] = useState(propTasks);
+  const [localProjects, setLocalProjects] = useState(propProjects);
+  const [prevPropProjects, setPrevPropProjects] = useState(propProjects);
 
   if (propTasks !== prevPropTasks) {
     setPrevPropTasks(propTasks);
     setLocalTasks(propTasks);
+  }
+  if (propProjects !== prevPropProjects) {
+    setPrevPropProjects(propProjects);
+    setLocalProjects(propProjects);
   }
 
   const sensors = useSensors(
@@ -282,8 +350,14 @@ export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
     ? localTasks
     : localTasks.filter((t) => t.status !== "done" && t.status !== "archived");
 
+  // Sort projects by displayOrder for column rendering
+  const sortedProjects = useMemo(
+    () => [...localProjects].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
+    [localProjects],
+  );
+
   const columns = useMemo(() => [
-    ...projects.map((p) => ({
+    ...sortedProjects.map((p) => ({
       id: p.id, label: p.name, color: p.color,
       tasks: visibleTasks.filter((t) => t.projectId === p.id).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     })),
@@ -291,7 +365,13 @@ export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
       id: UNASSIGNED_ID, label: "Unassigned", color: "#9ca3af",
       tasks: visibleTasks.filter((t) => !t.projectId).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     },
-  ], [projects, visibleTasks]);
+  ], [sortedProjects, visibleTasks]);
+
+  // Column sortable IDs (for horizontal SortableContext) — exclude Unassigned
+  const columnSortableIds = useMemo(
+    () => sortedProjects.map((p) => toColumnSortableId(p.id)),
+    [sortedProjects],
+  );
 
   function findColumn(taskId: string) {
     for (const col of columns) {
@@ -303,21 +383,73 @@ export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setError(null);
-    setActiveTask(event.active.data.current?.task ?? null);
+    const data = event.active.data.current;
+    if (data?.type === "column") {
+      setActiveColumnId(data.projectId);
+      setActiveTask(null);
+    } else {
+      setActiveTask(data?.task ?? null);
+      setActiveColumnId(null);
+    }
   }, []);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
-    const { over } = event;
+    const { over, active } = event;
+    // Only highlight columns for task drags, not column drags
+    if (active.data.current?.type === "column") return;
     if (!over) { setOverColumnId(null); return; }
     const overIdStr = String(over.id);
-    const isColumn = projects.some((p) => p.id === overIdStr) || overIdStr === UNASSIGNED_ID;
-    if (isColumn) { setOverColumnId(overIdStr); } else {
+    if (isColumnId(overIdStr)) return; // Hovering over a column sortable — ignore for task DnD
+    const isCol = sortedProjects.some((p) => p.id === overIdStr) || overIdStr === UNASSIGNED_ID;
+    if (isCol) { setOverColumnId(overIdStr); } else {
       const overData = over.data.current;
       if (overData?.columnId) setOverColumnId(overData.columnId);
     }
-  }, [projects]);
+  }, [sortedProjects]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const data = event.active.data.current;
+
+    // Column reorder
+    if (data?.type === "column") {
+      setActiveColumnId(null);
+      const { active, over } = event;
+      if (!over) return;
+      const activeId = fromColumnSortableId(String(active.id));
+      const overId = isColumnId(String(over.id))
+        ? fromColumnSortableId(String(over.id))
+        : String(over.id);
+      if (activeId === overId) return;
+
+      const oldIndex = sortedProjects.findIndex((p) => p.id === activeId);
+      const newIndex = sortedProjects.findIndex((p) => p.id === overId);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      // Compute new displayOrder using fractional indexing
+      const reordered = sortedProjects.filter((p) => p.id !== activeId);
+      const prev = newIndex > 0 ? reordered[newIndex - 1] : null;
+      const next = newIndex < reordered.length ? reordered[newIndex] : null;
+      const newDisplayOrder = computeSortOrder(
+        prev ? (prev.displayOrder ?? 0) : null,
+        next ? (next.displayOrder ?? 0) : null,
+      );
+
+      // Optimistic update
+      setLocalProjects((prev) =>
+        prev.map((p) => p.id === activeId ? { ...p, displayOrder: newDisplayOrder } : p)
+      );
+
+      try {
+        await updateProject(activeId, { displayOrder: newDisplayOrder });
+        emitDataChanged("projects");
+      } catch {
+        setLocalProjects(propProjects);
+        setError("Failed to reorder column. Please try again.");
+      }
+      return;
+    }
+
+    // Task reorder (existing logic)
     setActiveTask(null);
     setOverColumnId(null);
     const { active, over } = event;
@@ -326,9 +458,13 @@ export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
     if (!activeTaskData?.id) return;
     const activeId = activeTaskData.id;
     const overId = String(over.id);
+
+    // Skip if over a column sortable
+    if (isColumnId(overId)) return;
+
     const source = findColumn(activeId);
     if (!source) return;
-    const isOverColumn = projects.some((p) => p.id === overId) || overId === UNASSIGNED_ID;
+    const isOverColumn = sortedProjects.some((p) => p.id === overId) || overId === UNASSIGNED_ID;
     let targetColumnId: string;
     let targetIndex: number;
     if (isOverColumn) {
@@ -367,7 +503,12 @@ export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
       setError("Failed to move task. Please try again.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, projects, propTasks]);
+  }, [columns, sortedProjects, propTasks, propProjects]);
+
+  // Find the active column data for the drag overlay
+  const activeColumnData = activeColumnId
+    ? columns.find((c) => c.id === activeColumnId)
+    : null;
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
@@ -383,15 +524,58 @@ export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {
           <button onClick={() => setError(null)} className="ml-4 text-red-400 hover:text-red-600"><X className="h-4 w-4" /></button>
         </div>
       )}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((col) => (
-          <Column key={col.id} id={col.id} label={col.label} color={col.color} tasks={col.tasks} onSelectTask={setSelectedTask} onError={setError} isOver={overColumnId === col.id} />
-        ))}
-      </div>
+      <SortableContext items={columnSortableIds} strategy={horizontalListSortingStrategy}>
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {sortedProjects.map((p) => {
+            const col = columns.find((c) => c.id === p.id)!;
+            return (
+              <SortableColumn
+                key={p.id}
+                sortableId={toColumnSortableId(p.id)}
+                id={col.id}
+                label={col.label}
+                color={col.color}
+                tasks={col.tasks}
+                onSelectTask={setSelectedTask}
+                onError={setError}
+                isOver={overColumnId === col.id}
+              />
+            );
+          })}
+          {/* Unassigned column — not sortable, always last */}
+          {(() => {
+            const unassigned = columns.find((c) => c.id === UNASSIGNED_ID)!;
+            return (
+              <Column
+                id={unassigned.id}
+                label={unassigned.label}
+                color={unassigned.color}
+                tasks={unassigned.tasks}
+                onSelectTask={setSelectedTask}
+                onError={setError}
+                isOver={overColumnId === UNASSIGNED_ID}
+              />
+            );
+          })()}
+        </div>
+      </SortableContext>
       <DragOverlay>
-        {activeTask ? <TaskCardContent task={activeTask} onSelect={() => {}} overlay /> : null}
+        {activeTask ? (
+          <TaskCardContent task={activeTask} onSelect={() => {}} overlay />
+        ) : activeColumnData ? (
+          <div className="flex w-72 shrink-0 flex-col rounded-lg border border-indigo-300 bg-gray-50 shadow-lg ring-2 ring-indigo-200 opacity-80">
+            <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2.5">
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: activeColumnData.color }} />
+              <h3 className="text-sm font-semibold text-gray-700 truncate">{activeColumnData.label}</h3>
+              <span className="ml-auto shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">{activeColumnData.tasks.length}</span>
+            </div>
+            <div className="p-2 text-center text-xs text-gray-400">
+              {activeColumnData.tasks.length} task{activeColumnData.tasks.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+        ) : null}
       </DragOverlay>
-      {selectedTask && <TaskDetail task={selectedTask} projects={projects} onClose={() => setSelectedTask(null)} />}
+      {selectedTask && <TaskDetail task={selectedTask} projects={localProjects} onClose={() => setSelectedTask(null)} />}
     </DndContext>
   );
 }
