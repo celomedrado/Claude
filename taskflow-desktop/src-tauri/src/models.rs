@@ -74,6 +74,7 @@ pub struct Project {
     pub id: String,
     pub name: String,
     pub color: String,
+    pub display_order: f64,
     pub task_count: i64,
     pub created_at: i64,
 }
@@ -90,6 +91,7 @@ pub struct CreateProjectInput {
 pub struct UpdateProjectInput {
     pub name: Option<String>,
     pub color: Option<String>,
+    pub display_order: Option<f64>,
 }
 
 /* ------------------------------------------------------------------ */

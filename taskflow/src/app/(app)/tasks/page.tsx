@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { projects, tasks } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { type TaskItem } from "@/components/task-list";
 import { TasksView } from "@/components/tasks-view";
@@ -11,9 +11,10 @@ export default async function TasksPage() {
   if (!session?.user?.id) redirect("/login");
 
   const allProjects = await db
-    .select({ id: projects.id, name: projects.name, color: projects.color })
+    .select({ id: projects.id, name: projects.name, color: projects.color, displayOrder: projects.displayOrder })
     .from(projects)
-    .where(eq(projects.userId, session.user.id));
+    .where(eq(projects.userId, session.user.id))
+    .orderBy(asc(projects.displayOrder), desc(projects.createdAt));
 
   const projectMap = new Map(allProjects.map((p) => [p.id, p]));
 

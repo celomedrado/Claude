@@ -43,6 +43,18 @@ export async function updateProject(projectId: string, formData: FormData) {
   revalidatePath("/");
 }
 
+export async function updateProjectOrder(projectId: string, displayOrder: number) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  await db
+    .update(projects)
+    .set({ displayOrder })
+    .where(and(eq(projects.id, projectId), eq(projects.userId, session.user.id)));
+
+  revalidatePath("/");
+}
+
 export async function deleteProject(projectId: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");

@@ -368,7 +368,7 @@ const TaskCardContent = memo(function TaskCardContent({
 
 interface KanbanBoardProps {
   tasks: TaskItem[];
-  projects: { id: string; name: string; color: string }[];
+  projects: { id: string; name: string; color: string; displayOrder: number | null }[];
 }
 
 export function KanbanBoard({ tasks: propTasks, projects }: KanbanBoardProps) {

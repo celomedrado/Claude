@@ -56,6 +56,7 @@ fn run_migrations(conn: &Connection) -> SqlResult<()> {
             user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             name            TEXT NOT NULL,
             color           TEXT NOT NULL DEFAULT '#6366f1',
+            display_order   REAL DEFAULT 0,
             created_at      INTEGER DEFAULT (unixepoch())
         );
 
@@ -88,6 +89,12 @@ fn run_migrations(conn: &Connection) -> SqlResult<()> {
         );
         ",
     )?;
+
+    // Migration: add display_order column to projects (for existing DBs)
+    let _ = conn.execute_batch("ALTER TABLE projects ADD COLUMN display_order REAL DEFAULT 0;");
+    let _ = conn.execute_batch(
+        "UPDATE projects SET display_order = rowid WHERE display_order = 0 OR display_order IS NULL;",
+    );
 
     // Ensure the default desktop user exists (single-user mode — no auth)
     conn.execute(

@@ -71,6 +71,7 @@ export interface Project {
   id: string;
   name: string;
   color: string;
+  displayOrder: number;
   taskCount: number;
   createdAt: number;
 }
@@ -83,6 +84,7 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   color?: string;
+  displayOrder?: number;
 }
 
 /* ------------------------------------------------------------------ */

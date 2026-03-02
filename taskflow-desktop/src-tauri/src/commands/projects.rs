@@ -13,6 +13,7 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         id: row.get("id")?,
         name: row.get("name")?,
         color: row.get("color")?,
+        display_order: row.get("display_order")?,
         task_count: row.get("task_count")?,
         created_at: row.get("created_at")?,
     })
@@ -26,7 +27,7 @@ pub fn list_projects(
     let mut stmt = conn
         .prepare(
             "SELECT p.*, (SELECT count(*) FROM tasks WHERE tasks.project_id = p.id) as task_count
-             FROM projects p WHERE p.user_id = ?1 ORDER BY p.created_at DESC",
+             FROM projects p WHERE p.user_id = ?1 ORDER BY p.display_order ASC, p.created_at DESC",
         )
         .map_err(|e| e.to_string())?;
 
@@ -65,6 +66,7 @@ pub fn create_project(
         id,
         name,
         color: color.to_string(),
+        display_order: 0.0,
         task_count: 0,
         created_at: now,
     })
@@ -88,6 +90,10 @@ pub fn update_project(
     if let Some(ref color) = updates.color {
         set_clauses.push("color = ?".to_string());
         param_values.push(Box::new(color.clone()));
+    }
+    if let Some(order) = updates.display_order {
+        set_clauses.push("display_order = ?".to_string());
+        param_values.push(Box::new(order));
     }
 
     if set_clauses.is_empty() {

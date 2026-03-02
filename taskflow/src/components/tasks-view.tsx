@@ -10,7 +10,7 @@ type ViewMode = "list" | "board";
 
 interface TasksViewProps {
   tasks: TaskItem[];
-  projects: { id: string; name: string; color: string }[];
+  projects: { id: string; name: string; color: string; displayOrder: number | null }[];
 }
 
 export function TasksView({ tasks, projects }: TasksViewProps) {

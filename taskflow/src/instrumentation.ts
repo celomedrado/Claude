@@ -32,6 +32,18 @@ export async function register() {
       // Table may not exist yet
     }
 
+    // Add display_order column to projects for kanban column reordering
+    try {
+      db.exec(`ALTER TABLE projects ADD COLUMN display_order REAL DEFAULT 0`);
+    } catch {
+      // Column already exists — expected
+    }
+    try {
+      db.exec(`UPDATE projects SET display_order = rowid WHERE display_order = 0 OR display_order IS NULL`);
+    } catch {
+      // Table may not exist yet
+    }
+
     db.close();
   } catch {
     // DB file doesn't exist yet — will be created on first use
